@@ -1048,7 +1048,7 @@ _run_pacman_config() {
 }
 
 _run_pacstrap() {
-    packages="gdm git curl wget ${TEXT_EDITOR} "
+    packages="gdm git curl wget efibootmgr grub${TEXT_EDITOR} "
     if [[ ${DESKTOP} != "gnome-lite" ]]; then
         packages+="gnome-desktop ${DESKTOP_APPS_CONFIRMED} "
     else
@@ -1067,6 +1067,7 @@ export SELECTED_LOCALE
 export ROOT_PW_CONFIRM
 export USERNAME
 export USER_PW_CONFIRM
+export DEVICE
 
 cat << 'EOF' > /mnt/temp_script.sh
 #!/bin/bash
@@ -1097,6 +1098,14 @@ post_install_steps() {
     fi
     rm -rf /tmp/*
     sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
+    if [[ $DEVICE != "nvme0n1" ]]; then
+        mount "${DEVICE}1" /boot
+        grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+    else
+        mount "${DEVICE}p1" /boot
+        grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+    fi
+    grub-mkconfig -o /boot/grub/grub.cfg
 }
 
 post_install_steps
