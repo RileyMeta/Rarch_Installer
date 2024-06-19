@@ -1048,7 +1048,7 @@ _run_pacman_config() {
 }
 
 _run_pacstrap() {
-    packages="gdm git curl wget efibootmgr grub${TEXT_EDITOR} "
+    packages="gdm git curl wget efibootmgr grub ${TEXT_EDITOR} "
     if [[ ${DESKTOP} != "gnome-lite" ]]; then
         packages+="gnome-desktop ${DESKTOP_APPS_CONFIRMED} "
     else
