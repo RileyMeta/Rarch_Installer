@@ -1019,6 +1019,7 @@ shutdown_timer() {
         echo "The system will restart in ${i}"
         sleep 1
     done
+    umount -R /mnt
     reboot now --no-wall
 }
 
