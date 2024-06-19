@@ -56,6 +56,7 @@ AUR_WRAPPER="none"
 DESKTOP=""
 account_created=false
 HOST_NAME=""
+SELECTED_LOCALE="en_US.UTF-8"
 locale_set=false
 desktop_apps_set=false
 
@@ -72,7 +73,8 @@ GNOME_DESKTOP_APPS=('accerciser', 'cheese', 'd-spy', 'dconf-editor', 'devhelp', 
 main_menu() {
     clear
     prompt="Welcome to my Arch Linux installer"
-    prompt+="\n\nPlease type ${LIGHT_GREEN}'next'${ENDSTYLE} to continue or ${LIGHT_RED}'quit'${ENDSTYLE} to close"
+    prompt+="\n"
+    prompt+="\n\nPlease type ${LIGHT_GREEN}'start'${ENDSTYLE} to start the script or ${LIGHT_RED}'quit'${ENDSTYLE} to close"
     echo -e $prompt
     while IFS= read -p "> "; do
         case ${REPLY,,} in
@@ -143,7 +145,7 @@ disk_select() {
     done <<< "$output"
     echo -e "\n"
     echo "Which Device would you like to install to?"
-    echo -e "${LIGHT_GRAY}Please use, 'nvme1', 'nvme2, 'sda', 'sdb', etc.${ENDSTYLE}"
+    echo -e "${LIGHT_GRAY}Please use, 'nvme1', 'sda', 'sdb', etc.${ENDSTYLE}"
 
     while IFS= read -p "> "; do
         case ${REPLY,,} in
@@ -182,8 +184,8 @@ disk_select() {
 _device_confirm() {
     clear
     prompt="Selected Device: ${LIGHT_RED}$DEVICE${ENDSTYLE}"
-    prompt+="\n"
-    prompt+="\n${LIGHT_GREEN}'Continue'${ENDSTYLE} to move on and ${LIGHT_RED}'Select'${ENDSTYLE} to change your selected device"
+    prompt+="\nIs this correct?"
+    prompt+="\n\n${LIGHT_GREEN}[Y]es${ENDSTYLE} to continue or ${LIGHT_RED}[N]o${ENDSTYLE} to go back and change your selected device"
     echo -e $prompt
 
     while IFS= read -p "> "; do
@@ -233,8 +235,13 @@ disk_partitioning() {
     prompt="${LIGHT_RED}${UNDERLINE}Disk Partitioning is Permanent and will erase all data on the device.${ENDSTYLE}"
     prompt+="\n${FAINT}Changes will not be made to the host system until the end of the script.${ENDSTYLE}"
     prompt+="\n\nThis installer is limited in it's partition design and will reserve ${LIGHT_CYAN}512MiB${ENDSTYLE} for"
-    prompt+="\nthe bootloader, ${LIGHT_CYAN}2GiB${ENDSTYLE} for the Swap partition if previously enabled | ${FAINT}Swap = ${SWAP}${ENDSTYLE}"
-    prompt+="\nand ${LIGHT_CYAN}the remainder${ENDSTYLE} for a combined root/home partition ${FAINT}(aka the Default Layout)${ENDSTYLE}."
+    prompt+="\nthe bootloader, ${LIGHT_CYAN}2GiB${ENDSTYLE} for the Swap partition if previously enabled"
+    if [[ $SWAP != true ]]; then
+        prompt+=" ${FAINT}|${ENDSTYLE} ${LIGHT_RED}Swap: Disabled${ENDSTYLE}"
+    else
+        prompt+=" ${FAINT}|${ENDSTYLE} ${GREEN}Swap: Enabled${ENDSTYLE}"
+    fi
+    prompt+="\nand ${LIGHT_CYAN}the remainder${ENDSTYLE} for a combined root/home partition."
     prompt+="\n"
     prompt+="\nWould you like to continue?"
     prompt+="\n${LIGHT_GREEN}'yes'${ENDSTYLE} to continue, ${LIGHT_RED}'no'${ENDSTYLE} to go back."
@@ -281,8 +288,9 @@ choose_filesystem() {
 
 _filesystem_confirm() {
     clear
-    prompt="You chose ${FILE_SYSTEM}"
-    prompt+="\nIs this correct?\n${LIGHT_GREEN}[Y]es${ENDSTYLE} or ${LIGHT_RED}[N]o${ENDSTYLE}"
+    prompt="You chose ${LIGHT_CYAN}${FILE_SYSTEM}${ENDSTYLE}"
+    prompt+="\nIs this correct?"
+    prompt+="\n\n${LIGHT_GREEN}[Y]es${ENDSTYLE} or ${LIGHT_RED}[N]o${ENDSTYLE}"
     echo -e "${prompt}"
     while IFS= read -p "> "; do
         case ${REPLY,,} in
@@ -339,6 +347,7 @@ _text_editor_confirm() {
             case ${REPLY,,} in
                 yes|y|confirm|continue|next ) _symlink_check && exit ;;
                 no|n|deny|cancel|back ) text_editor && break ;;
+                * ) _bad_command && _text_editor_confirm;;
             esac
         done
     else
@@ -391,9 +400,10 @@ root_password() {
     else
         if [[ $EDITING != true ]]; then
             root_pass_set=true
-            _install_review
-        else
             aur_wrapper
+        else
+            root_pass_set=true
+            _install_review
         fi
     fi
 } 
@@ -426,14 +436,15 @@ aur_wrapper() {
 }
 
 _aur_confirm() { 
-    prompt="You chose to install ${AUR_WRAPPER}"
+    clear
+    prompt="You chose to install ${LIGHT_GREEN}${AUR_WRAPPER}${ENDSTYLE}"
     prompt+="\nIs this correct?"
     prompt+="\n"
     prompt+="\n${LIGHT_GREEN}[Y]es${ENDSTYLE} or ${LIGHT_RED}[N]o${ENDSTYLE}"
     echo -e $prompt
     while IFS= read -p "> "; do
         case ${REPLY,,} in
-            yes|y|confirm|continue|next ) exit
+            yes|y|confirm|continue|next ) choose_desktop
                 break;;
             no|n|deny|back ) aur_wrapper
                 break ;;
@@ -470,17 +481,21 @@ choose_desktop() {
 
 _confirm_destop() {
     clear
-    prompt="You chose $DESKTOP, is this correct?"
+    prompt="You chose ${GREEN}$DESKTOP${ENDSTYLE}, is this correct?"
     prompt+="\n\n${LIGHT_GREEN}[Y]es${ENDSTYLE} or ${LIGHT_RED}[N]o${ENDSTYLE}"
     echo -e $prompt
 
     while IFS= read -p "> "; do
-        case ${REPLY,,} in
-            yes|y|confirm|continue|next ) desktop_apps 
-                break;;
-            no|n|deny|back ) choose_desktop ;;
-            * ) _bad_command && _confirm_destop;;
-        esac
+            case ${REPLY,,} in
+                yes|y|confirm|continue|next ) if [[ ${DESKTOP} != 'gnome-full' ]]; then
+                        desktop_apps
+                    else
+                        _account_query
+                    fi
+                    break;;
+                no|n|deny|back ) choose_desktop ;;
+                * ) _bad_command && _confirm_destop;;
+            esac
     done
 }
 
@@ -535,18 +550,24 @@ desktop_apps() {
 
 _desktop_app_confirm() {
     clear
-    echo "You chose to install:"
-    for item in "${DESKTOP_APPS[@]}"; do
-        prompt+="$item"
-    done
-    prompt="Is this correct?"
+    prompt=""
+    if [[ ${DESKTOP_APPS[@]} != "" ]]; then
+        prompt+="You chose to install:"
+        for item in "${DESKTOP_APPS[@]}"; do
+            prompt+="$item"
+        done
+        prompt+="Is this correct?"
+    else
+        prompt+="You chose not to install any additional apps."
+        prompt+="\nAre you sure?"
+    fi
     prompt+="\n\n${LIGHT_GREEN}[Y]es${ENDSTYLE} or ${LIGHT_RED}[N]o${ENDSTYLE}"
     echo -e $prompt
     while IFS= read -p "> "; do
         case ${REPLY,,} in
-            yes|y|confirm|continue|next ) desktop_apps 
+            yes|y|confirm|continue|next ) _account_query 
                 break;;
-            no|n|deny|back ) choose_desktop ;;
+            no|n|deny|back ) desktop_apps ;;
             * ) _bad_command && _confirm_destop && break;;
         esac
     done
@@ -554,7 +575,7 @@ _desktop_app_confirm() {
 
 _account_query() {
     clear
-    prompt="Would you like to create user account?"
+    prompt="Would you like to create a user account?"
     prompt+="\n"
     prompt+="\n${LIGHT_GREEN}[Y]es${ENDSTYLE} or ${LIGHT_RED}[N]o${ENDSTYLE}"
     echo -e $prompt
@@ -579,7 +600,7 @@ account_creation() {
     echo -e $prompt
     read -p "> " USERNAME
     clear
-    echo -e "Henceforth, You shall be known as: ${USERNAME}"
+    echo -e "Henceforth, You shall be known as: ${USERNAME,,}"
     sleep 1
     _account_passwd
 }
@@ -587,7 +608,7 @@ account_creation() {
 _account_passwd() {
     clear
     prompt="${LIGHT_RED}[Warning!]${ENDSTYLE} ${FAINT}This password will be stored plain-text until the end of the script.${ENDSTYLE}"
-    prompt+="\nPlease set your User password"
+    prompt+="\nPlease set the password for ${LIGHT_CYAN}${USERNAME}${ENDSTYLE}"
     echo -e $prompt
     IFS= read -rsp "> " USER_PW
     echo "Please retype:"
@@ -595,14 +616,14 @@ _account_passwd() {
     if [[ $USER_PW_CONFIRM != $USER_PW ]]; then
         _bad_password && _account_passwd
     else
-        _user_created="${USERNAME}"
+        _user_created="${USERNAME,,}"
         _user_sudoers
     fi
 } 
 
 _user_sudoers() {
     clear
-    prompt="Would you like ${GREEN}${USERNAME}${ENDSTYLE} to be a sudoer?"
+    prompt="Would you like ${GREEN}${USERNAME,,}${ENDSTYLE} to be a sudoer?"
     prompt+="\n\n${LIGHT_GREEN}[Y]es${ENDSTYLE} or ${LIGHT_RED}[N]o${ENDSTYLE}"
     echo -e $prompt
     while IFS= read -p "> "; do
@@ -616,14 +637,18 @@ _user_sudoers() {
                 break;;
         esac
     done
-    system_hostname
+    if [[ $EDITING = true ]]; then
+        _install_review
+    else
+        system_hostname
+    fi
 }
 
 system_hostname() {
     clear
     prompt="What would you like to set the System's Hostname to?"
     echo -e $prompt
-    read -p "> " $NEW_HOST_NAME
+    read -p "> " NEW_HOST_NAME
     _hostname_confirm
 }
 
@@ -650,66 +675,118 @@ _hostname_confirm() {
     fi 
 }
 
-select_locale() { 
-declare -A accepted_aliases=(
-    ["en_us"]="en_US.utf8"
-    ["english"]="en_US.utf8"
-    ["american"]="en_US.utf8"
-    ["american english"]="en_US.utf8"
-    ["fr_fr"]="fr_FR.utf8"
-    ["french"]="fr_FR.utf8"
-    ["française"]="fr_FR.utf8"
-    ["français"]="fr_FR.utf8"
-    ["de_de"]="de_DE.utf8"
-    ["german"]="de_DE.utf8"
-    ["deutsch"]="de_DE.utf8"
-)
-    locales=($(ls /usr/share/i18n/locales))
-    num_locales=${#locales[@]}
-
-    echo "Select a locale from the list below (or type an alias):"
-    for ((i = 0; i < num_locales; i++)); do
-        echo "$((i + 1)). ${locales[i]}"
+select_locale() {
+    clear
+    prompt="This installer uses ${SELECTED_LOCALE} as the default system locale."
+    prompt+="\nIf this is not the case for your system, please type your primary language"
+    prompt+="\nand the script will match it to your respective locale."
+    prompt+="\n${FAINT}This is not an exhaustive list. Most locales work with the English translation of the name.${ENDSTYLE}"
+    prompt+="\n\nExamples: 'english', 'french'/'français'/'française', 'german'/'deutsch', etc"
+    prompt+="\n${LIGHT_YELLOW}[Skip]${ENDSTYLE} to continue with ${SELECTED_LOCALE}"
+    echo -e $prompt
+    while IFS= read -p "> "; do
+        case ${REPLY,,} in
+            afrikaans ) SELECTED_LOCALE="af_ZA.UTF-8" break;;
+            albanian ) SELECTED_LOCALE="sq_AL.UTF-8" break;;
+            arabic ) SELECTED_LOCALE="ar_SA.UTF-8" break;;
+            basque ) SELECTED_LOCALE="eu_ES.UTF-8" break;;
+            belarusian ) SELECTED_LOCALE="be_BY.UTF-8" break;;
+            bosnian ) SELECTED_LOCALE="bs_BA.UTF-8" break;;
+            bulgarian ) SELECTED_LOCALE="bg_BG.UTF-8" break;;
+            catalan ) SELECTED_LOCALE="ca_ES.UTF-8" break;;
+            croatian ) SELECTED_LOCALE="hr_HR.UTF-8" break;;
+            'simple chinese'|chinese ) SELECTED_LOCALE="zh_CN.UTF-8" break;;
+            'traditional chinese' ) SELECTED_LOCALE="zh_TW.UTF-8" break;;
+            czech ) SELECTED_LOCALE="cs_CZ.UTF-8" break;;
+            danish ) SELECTED_LOCALE="da_DK.UTF-8" break;;
+            dutch ) SELECTED_LOCALE="nl_NL.UTF-8" break;;
+            english|en|us|'en_us' ) SELECTED_LOCALE="en.UTF-8" break;;
+            estonian ) SELECTED_LOCALE="et_EE.UTF-8" break;;
+            farsi ) SELECTED_LOCALE="fa_IR.UTF-8" break;;
+            filipino ) SELECTED_LOCALE="fil_PH.UTF-8" break;;
+            finnish ) SELECTED_LOCALE="fi_FI.UTF-8" break;;
+            french|fr|'française'|'français' ) SELECTED_LOCALE="fr_FR.UTF-8" break;;
+            'french Canadian' ) SELECTED_LOCALE="fr_CA.UTF-8" break;;
+            gaelic ) SELECTED_LOCALE="ga.UTF-8" break;;
+            gallego ) SELECTED_LOCALE="gl_ES.UTF-8" break;;
+            georgian ) SELECTED_LOCALE="ka_GE.UTF-8" break;;
+            german ) SELECTED_LOCALE="de_DE.UTF-8" break;;
+            greek ) SELECTED_LOCALE="el_GR.UTF-8" break;;
+            gujarati ) SELECTED_LOCALE="gu.UTF-8" break;;
+            hebrew ) SELECTED_LOCALE="he_IL.utf8" break;;
+            hindi ) SELECTED_LOCALE="hi_IN.UTF-8" break;;
+            hungarian ) SELECTED_LOCALE="hu.UTF-8" break;;
+            icelandic ) SELECTED_LOCALE="is_IS.UTF-8" break;;
+            indonesian ) SELECTED_LOCALE="id_ID.UTF-8" break;;
+            italian ) SELECTED_LOCALE="it_IT.UTF-8" break;;
+            japanese ) SELECTED_LOCALE="ja_JP.UTF-8" break;;
+            kannada ) SELECTED_LOCALE="kn_IN.UTF-8" break;;
+            khmer ) SELECTED_LOCALE="km_KH.UTF-8" break;;
+            korean ) SELECTED_LOCALE="ko_KR.UTF-8" break;;
+            lao ) SELECTED_LOCALE="lo_LA.UTF-8" break;;
+            lithuanian ) SELECTED_LOCALE="lt_LT.UTF-8" break;;
+            latvian ) SELECTED_LOCALE="lat.UTF-8" break;;
+            malayalam ) SELECTED_LOCALE="ml_IN.UTF-8" break;;
+            malaysian ) SELECTED_LOCALE="ms_MY.UTF-8" break;;
+            maori|'ngai tahu' ) SELECTED_LOCALE="mi_NZ.UTF-8" break;;
+            maori|'waikoto uni' ) SELECTED_LOCALE="mi_NZ.UTF-8" break;;
+            mongolian ) SELECTED_LOCALE="mn.UTF-8" break;;
+            norwegian ) SELECTED_LOCALE="no_NO.UTF-8" break;;
+            norwegian ) SELECTED_LOCALE="no_NO.UTF-8" break;;
+            nynorsk ) SELECTED_LOCALE="nn_NO.UTF-8" break;;
+            polish ) SELECTED_LOCALE="pl.UTF-8" break;;
+            portuguese ) SELECTED_LOCALE="pt_PT.UTF-8" break;;
+            'brazillian portuguese'|brazil ) SELECTED_LOCALE="pt_BR.UTF-8" break;;
+            romanian ) SELECTED_LOCALE="ro_RO.UTF-8" break;;
+            russian ) SELECTED_LOCALE="ru_RU.UTF-8" break;;
+            samoan ) SELECTED_LOCALE="mi_NZ.UTF-8" break;;
+            serbian ) SELECTED_LOCALE="sr_CS.UTF-8" break;;
+            slovak ) SELECTED_LOCALE="sk_SK.UTF-8" break;;
+            slovenian ) SELECTED_LOCALE="sl_SI.UTF-8" break;;
+            somali ) SELECTED_LOCALE="so_SO.UTF-8" break;;
+            spanish ) SELECTED_LOCALE="es_ES.UTF-8" break;;
+            swedish ) SELECTED_LOCALE="sv_SE.UTF-8" break;;
+            tagalog ) SELECTED_LOCALE="tl.UTF-8" break;;
+            tamil ) SELECTED_LOCALE="ta_IN.UTF-8" break;;
+            thai ) SELECTED_LOCALE="th_TH.UTF-8" break;;
+            tongan ) SELECTED_LOCALE="mi_NZ.UTF-8'" break;;
+            turkish ) SELECTED_LOCALE="tr_TR.UTF-8" break;;
+            ukrainian ) SELECTED_LOCALE="uk_UA.UTF-8" break;;
+            vietnamese ) SELECTED_LOCALE="vi_VN.UTF-8" break;;
+            fr_ch ) SELECTED_LOCALE="fr_CH.UTF-8" break;;
+            fr_be ) SELECTED_LOCALE="fr_BE.UTF-8" break;;
+            skip ) break;;
+        esac
     done
+    _confirm_locale
+}
 
-    read -p "> " input
-
-    if [[ $input =~ ^[0-9]+$ ]]; then
-        if [[ $input -ge 1 && $input -le $num_locales ]]; then
-            selected_locale=${locales[$((input - 1))]}
-            echo "You selected: $selected_locale"
-        else
-            _bad_command && select_locale
-        fi
-    else # Check for available aliases
-        if [[ -n "${accepted_aliases[$input]}" ]]; then
-            selected_locale=${accepted_aliases[$input]}
-            echo "You selected: $selected_locale (alias)"
-        else
-            _bad_command && select_locale
-        fi
-    fi
-
-    # Generate the selected locale if it's not already available
-    if ! locale -a | grep -q "^$selected_locale\$"; then
-        locale-gen $selected_locale
-        update-locale
-    fi
-
-    echo "LANG=${select_locale}" > /etc/locale.conf
-    locale_set=true
-    if [[ $EDITING != true ]]; then 
-        install_confirm
-    else
-        _install_review
-    fi
+_confirm_locale() {
+    clear
+    prompt="You chose ${GREEN}${SELECTED_LOCALE}${ENDSTYLE} is this correct?"
+    prompt+="\n\n${LIGHT_GREEN}[Y]es${ENDSTYLE} or ${LIGHT_RED}[N]o${ENDSTYLE}"
+    echo -e $prompt
+    while IFS= read -p "> "; do
+        case ${REPLY,,} in
+            yes|y ) _install_review
+                break;;
+            no|n ) select_locale
+                break;;
+        esac
+    done
 }
 
 _install_review() {
     clear
-    prompt="${BOLD}Please review all your info below.${ENDSTYLE}"
-    prompt+="\nIf there are any changes you would like to make, simply type the label name"
-    prompt+="\nand you will be taken to that section so you can make changes."
+    prompt=""
+    if [[ $EDITING != true ]]; then
+        prompt+="${BOLD}Welcome to My Arch Linux Installer${ENDSTYLE}"
+        prompt+="\nBelow are all the available steps."
+    else
+        prompt+="${BOLD}Please review all your info below.${ENDSTYLE}"
+        prompt+="\nIf there are any changes you would like to make, simply type the label name"
+        prompt+="\nand you will be taken to that section so you can make changes."
+    fi
     prompt+="\n"
     if [[ $DEVICE != "" ]]; then
         prompt+="\nDisk Selection: ${GREEN}${DEVICE}${ENDSTYLE}"
@@ -746,30 +823,38 @@ _install_review() {
     else
         prompt+="\nDesktop: ${RED}not set${ENDSTYLE}"
     fi
-    if [[ $desktop_apps_set != true ]]; then
-        prompt+="\nDesktop Apps: ${RED}not set${ENDSTYLE}"
+    if [[ $DESKTOP != 'gnome-full' ]]; then
+        if [[ $desktop_apps_set != true ]]; then
+            prompt+="\nDesktop Apps: ${RED}not set${ENDSTYLE}"
+        else
+            prompt+="\nDesktop Apps: ${GREEN}defined${ENDSTYLE}"
+        fi
     else
-        prompt+="\nDesktop Apps: ${GREEN}defined${ENDSTYLE}"
+        prompt+="\nDesktop Apps: ${GREEN}gnome-extra${ENDSTYLE}"
     fi
     if [[ $account_created = true ]]; then
         prompt+="\nUser Account: ${GREEN}${account_created}${ENDSTYLE}"
     else
         prompt+="\nUser Account: ${FAINT}No User Account${ENDSTYLE}"
     fi
-    if [[ $HOST_NAME != "" ]]; then
+    if [[ ${NEW_HOST_NAME} != "" ]]; then
         prompt+="\nHostname: ${GREEN}${NEW_HOST_NAME}${ENDSTYLE}"
     else
         prompt+="\nHostname: ${RED}not set${ENDSTYLE}"
     fi
-    if [[ $locale_set != false ]]; then
-        prompt+="\nLocale: ${GREEN}${selected_locale}${ENDSTYLE}"
+    prompt+="\nLocale: ${GREEN}${SELECTED_LOCALE}${ENDSTYLE}"
+    if [[ $EDITING != true ]]; then
+        prompt+="\n\nPlease type ${LIGHT_GREEN}'start'${ENDSTYLE} to start the script or ${LIGHT_RED}'quit'${ENDSTYLE} to close"
     else
-        prompt+="\nLocale: ${RED}not set${ENDSTYLE}"
+        prompt+="\n\n${LIGHT_GREEN}[Confirm]${ENDSTYLE} to begin system installation or ${LIGHT_RED}[Cancel]${ENDSTYLE} to close the script now."
     fi
-    prompt+="\n\n${LIGHT_GREEN}[Confirm]${ENDSTYLE} to begin system installation or ${LIGHT_RED}[Cancel]${ENDSTYLE} to close the script now."
     echo -e $prompt
     while IFS= read -p "> "; do
-        EDITING=true
+        if [[ ${REPLY,,} != 'start' ]]; then
+            EDITING=true
+        else
+            EDITING=false
+        fi
         case ${REPLY,,} in
             disk|'disk selection' ) disk_select
                 break;;
@@ -793,7 +878,7 @@ _install_review() {
                 break;;
             locale ) select_locale
                 break;;
-            start|restart ) init_test
+            start|restart ) init_test && EDITING=false
                 break;;
             confirm|continue|next ) _install_final_confirm
                 break;;
@@ -813,11 +898,15 @@ _install_final_confirm() {
     echo -e "${prompt}"
     while IFS= read -p "> "; do
         case ${REPLY,,} in
-            yes|y|confirm|continue|next ) system_install && exit ;;
+            yes|y|confirm|continue|next ) SYSTEM_INSTALL && exit ;;
             no|n|deny|cancel|back ) choose_filesystem && break ;;
             * ) _bad_command && _filesystem_confirm ;;
         esac
     done
+}
+
+SYSTEM_INSTALL() {
+    echo "DONE!"
 }
 
 _catastrophic_failure() {
@@ -835,15 +924,15 @@ _catastrophic_failure() {
     exit 1
 }
 
-SYSTEM_INSTALL() {
-    # Basically a configured list of all installation steps for easy troubleshooting.
-    _run_fdisk || step_failed="fdisk" && _catastrophic_failure 
-    _run_mkfs || step_failed="mkfs" && _catastrophic_failure
-    _run_mount || step_failed="mount" && _catastrophic_failure
-    _run_pacman_config || step_failed="pacman" && _catastrophic_failure
-    _run_pacstrap || step_failed="pacstrap" && _catastrophic_failure
-    _run_chroot || step_failed="chroot" && _catastrophic_failure
-}
+
+# SYSTEM_INSTALL() {
+    # _run_fdisk || step_failed="fdisk" && _catastrophic_failure 
+    # _run_mkfs || step_failed="mkfs" && _catastrophic_failure
+    # _run_mount || step_failed="mount" && _catastrophic_failure
+    # _run_pacman_config || step_failed="pacman" && _catastrophic_failure
+    # _run_pacstrap || step_failed="pacstrap" && _catastrophic_failure
+    # _run_chroot || step_failed="chroot" && _catastrophic_failure
+# }
 
 _run_fdisk() {
     clear
@@ -951,7 +1040,7 @@ _run_pacstrap() {
 _run_chroot() {
 
 export NEW_HOST_NAME
-export select_locale
+export SELECTED_LOCALE
 export ROOT_PW_CONFIRM
 export USERNAME
 export USER_PW_CONFIRM
@@ -961,7 +1050,7 @@ cat << 'EOF' > /mnt/temp_script.sh
 
 post_install_steps() {
     echo "${NEW_HOST_NAME}" > /etc/hostname
-    echo "LANG=${selected_locale}" > /etc/locale.conf
+    echo "LANG=${SELECTED_LOCALE}" > /etc/locale.conf
     echo root:$ROOT_PW_CONFIRM | chpasswd
     useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
     echo $USERNAME:$USER_PW_CONFIRM | chpasswd
@@ -1023,4 +1112,4 @@ shutdown_timer() {
     reboot now --no-wall
 }
 
-main_menu
+_install_review
