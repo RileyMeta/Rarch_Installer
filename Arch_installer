@@ -905,9 +905,9 @@ _install_final_confirm() {
     done
 }
 
-SYSTEM_INSTALL() {
-    echo "DONE!"
-}
+#SYSTEM_INSTALL() {
+#    echo "DONE!"
+#}
 
 _catastrophic_failure() {
     clear
@@ -925,14 +925,14 @@ _catastrophic_failure() {
 }
 
 
-# SYSTEM_INSTALL() {
-    # _run_fdisk || step_failed="fdisk" && _catastrophic_failure 
-    # _run_mkfs || step_failed="mkfs" && _catastrophic_failure
-    # _run_mount || step_failed="mount" && _catastrophic_failure
-    # _run_pacman_config || step_failed="pacman" && _catastrophic_failure
-    # _run_pacstrap || step_failed="pacstrap" && _catastrophic_failure
-    # _run_chroot || step_failed="chroot" && _catastrophic_failure
-# }
+SYSTEM_INSTALL() {
+    _run_fdisk || step_failed="fdisk" && _catastrophic_failure 
+    _run_mkfs || step_failed="mkfs" && _catastrophic_failure
+    _run_mount || step_failed="mount" && _catastrophic_failure
+    _run_pacman_config || step_failed="pacman" && _catastrophic_failure
+    _run_pacstrap || step_failed="pacstrap" && _catastrophic_failure
+    _run_chroot || step_failed="chroot" && _catastrophic_failure
+}
 
 _run_fdisk() {
     clear
