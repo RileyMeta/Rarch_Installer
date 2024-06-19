@@ -799,7 +799,7 @@ _install_review() {
         prompt+="\nSwap: ${FAINT}Disabled${ENDSTYLE}"
     fi
     if [[ $FILE_SYSTEM != '' ]]; then
-        prompt+="\nFile System: ${GREEN}${FILE_SYSTEM}${ENDSTYLE}"
+        prompt+="\nFile System: ${GREEN}${FILE_SYSTEM}${ENDSTYLE}" 
     else
         prompt+="\nFile System: ${RED}not set${ENDSTYLE}"
     fi
@@ -809,7 +809,7 @@ _install_review() {
         prompt+="\nText Editor: ${RED}not set${ENDSTYLE}"
     fi
     if [[ $root_pass_set = true ]]; then
-        prompt+="\nRoot Password: ${GREEN}set${ENDSTYLE}"
+        prompt+="\nRoot Password: ${GREEN}set${ENDSTYLE}" 
     else
         prompt+="\nRoot Password: ${RED}not set${ENDSTYLE}"
     fi
@@ -819,7 +819,7 @@ _install_review() {
         prompt+="\nAUR Wrapper: ${FAINT}None Chosen${ENDSTYLE}"
     fi
     if [[ $DESKTOP != "" ]]; then
-        prompt+="\nDesktop: ${GREEN}${DESKTOP}${ENDSTYLE}"
+        prompt+="\nDesktop: ${GREEN}${DESKTOP}${ENDSTYLE}" 
     else
         prompt+="\nDesktop: ${RED}not set${ENDSTYLE}"
     fi
@@ -838,7 +838,7 @@ _install_review() {
         prompt+="\nUser Account: ${FAINT}No User Account${ENDSTYLE}"
     fi
     if [[ ${NEW_HOST_NAME} != "" ]]; then
-        prompt+="\nHostname: ${GREEN}${NEW_HOST_NAME}${ENDSTYLE}"
+        prompt+="\nHostname: ${GREEN}${NEW_HOST_NAME}${ENDSTYLE}" 
     else
         prompt+="\nHostname: ${RED}not set${ENDSTYLE}"
     fi
@@ -898,16 +898,49 @@ _install_final_confirm() {
     echo -e "${prompt}"
     while IFS= read -p "> "; do
         case ${REPLY,,} in
-            yes|y|confirm|continue|next ) SYSTEM_INSTALL && exit ;;
+            yes|y|confirm|continue|next ) SYSTEM_INSTALL && break ;;
             no|n|deny|cancel|back ) choose_filesystem && break ;;
             * ) _bad_command && _filesystem_confirm ;;
         esac
     done
 }
 
-#SYSTEM_INSTALL() {
-#    echo "DONE!"
-#}
+SYSTEM_INSTALL() {
+    clear
+    prompt=""
+    if [[ $DEVICE = "" ]]; then
+        prompt+="\n${RED}[WARNING!]${ENDSTYLE} installation cannot continue, no Storage Device has been selected."
+        echo -e $prompt
+        sleep 3
+        _install_review
+    elif [[ $FILE_SYSTEM = "" ]]; then
+        prompt+="\n${RED}[WARNING!]${ENDSTYLE} installation cannot continue, no File System has been selected."
+        echo -e $prompt
+        sleep 3
+        _install_review
+    elif [[ $root_pass_set != true ]]; then
+        prompt+="\n${RED}[WARNING!]${ENDSTYLE} installation cannot continue, no root password has been set."
+        echo -e $prompt
+        sleep 3
+        _install_review
+    elif [[ $NEW_HOST_NAME = "" ]]; then
+        prompt+="\n${RED}[WARNING!]${ENDSTYLE} installation cannot continue, no Hostname has been set."
+        echo -e $prompt
+        sleep 3
+        _install_review
+    else
+        _run_fdisk || step_failed="fdisk" && _catastrophic_failure 
+        _run_mkfs || step_failed="mkfs" && _catastrophic_failure
+        _run_mount || step_failed="mount" && _catastrophic_failure
+        _run_pacman_config || step_failed="pacman" && _catastrophic_failure
+        _run_pacstrap || step_failed="pacstrap" && _catastrophic_failure
+        _run_chroot || step_failed="chroot" && _catastrophic_failure
+        sleep 3
+        clear
+        prompt+="INSTALL SUCCESSFUL"
+        echo -e $prompt
+    fi
+}
 
 _catastrophic_failure() {
     clear
@@ -922,16 +955,6 @@ _catastrophic_failure() {
     esac
     echo -e $prompt
     exit 1
-}
-
-
-SYSTEM_INSTALL() {
-    _run_fdisk || step_failed="fdisk" && _catastrophic_failure 
-    _run_mkfs || step_failed="mkfs" && _catastrophic_failure
-    _run_mount || step_failed="mount" && _catastrophic_failure
-    _run_pacman_config || step_failed="pacman" && _catastrophic_failure
-    _run_pacstrap || step_failed="pacstrap" && _catastrophic_failure
-    _run_chroot || step_failed="chroot" && _catastrophic_failure
 }
 
 _run_fdisk() {
@@ -1074,9 +1097,6 @@ post_install_steps() {
     fi
     rm -rf /tmp/*
     sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
-    sed -i 's/#ParallelDownloads = 5/ParallelDownloads = 12/g' /etc/pacman.conf
-    sed -i 's/#Color/Color/g' /etc/pacman.conf
-    sed -i 's/#VerbosePkgLists/VerbosePkgLists/g' /etc/pacman.conf
 }
 
 post_install_steps
