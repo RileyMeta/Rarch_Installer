@@ -1048,7 +1048,7 @@ _run_pacman_config() {
 }
 
 _run_pacstrap() {
-    packages="gdm git curl wget efibootmgr grub${TEXT_EDITOR} "
+    packages="gdm git curl wget efibootmgr grub dosfstools ${TEXT_EDITOR} "
     if [[ ${DESKTOP} != "gnome-lite" ]]; then
         packages+="gnome-desktop ${DESKTOP_APPS_CONFIRMED} "
     else
@@ -1056,6 +1056,11 @@ _run_pacstrap() {
     fi
     if [[ ${AUR_WRAPPER} = "yay" ]]; then
         packages+="go "
+    fi
+    if [[ ${FILE_SYSTEM} = 'ext4' ]]; then
+        packages+="e2fsprogs"
+    else
+        packages+="btrfs-progs"
     fi
     pacstrap -K /mnt base linux linux-firmware ${packages}
 }
