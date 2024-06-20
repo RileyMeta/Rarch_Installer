@@ -2,7 +2,7 @@
 
 WHITE="\e[97m"
 BLACK="\e[30m"
-GRAY="\e[90m"	
+GRAY="\e[90m"
 RED="\e[31m"
 GREEN="\e[32m"
 YELLOW="\e[33m"
@@ -67,8 +67,7 @@ GNOME_DESKTOP_APPS=('accerciser', 'cheese', 'd-spy', 'dconf-editor', 'devhelp', 
 'gnome-multi-writer', 'gnome-nibbles', 'gnome-notes', 'gnome-photos', 'gnome-recipes',
 'gnome-robots', 'gnome-sound-recorder', 'gnome-sudoku', 'gnome-taquin', 'gnome-terminal',
 'gnome-tetravex', 'gnome-tweaks', 'hitori', 'iagno', 'lightsoff', 'polari', 'quadrapassel',
-'seahorse', 'swell-foop', 'sysprof', 'tali'
-)
+'seahorse', 'swell-foop', 'sysprof', 'tali')
 
 main_menu() {
     clear
@@ -505,8 +504,8 @@ desktop_apps() {
     clear
     prompt="Please choose from this list any additional Apps that you would like to install."
     prompt+="\nAdditional Apps:"
-    prompt+="\n${DESKTOP_APPS[@]}"
-    prompt+="\nAdd an item (or type 'done' to finish):"
+    prompt+="\n${GNOME_DESKTOP_APPS[@]}"
+    prompt+="\n\nAdd an item (or type 'done' to finish):"
     echo -e $prompt
     while true; do
         read -p "> " input
@@ -551,9 +550,9 @@ desktop_apps() {
 _desktop_app_confirm() {
     clear
     prompt=""
-    if [[ ${DESKTOP_APPS[@]} != "" ]]; then
+    if [[ ${GNOME_DESKTOP_APPS[@]} != "" ]]; then
         prompt+="You chose to install:"
-        for item in "${DESKTOP_APPS[@]}"; do
+        for item in "${GNOME_DESKTOP_APPS[@]}"; do
             prompt+="$item"
         done
         prompt+="Is this correct?"
@@ -1048,11 +1047,11 @@ _run_pacman_config() {
 }
 
 _run_pacstrap() {
-    packages="gdm git curl wget efibootmgr grub dosfstools ${TEXT_EDITOR} "
+    packages="git curl wget efibootmgr grub dosfstools ${TEXT_EDITOR} "
     if [[ ${DESKTOP} != "gnome-lite" ]]; then
-        packages+="gnome-desktop ${DESKTOP_APPS_CONFIRMED} "
+        packages+="gdm gnome-desktop ${DESKTOP_APPS_CONFIRMED} "
     else
-        packages+="gnome gnome-extra "
+        packages+="gdm gnome gnome-extra "
     fi
     if [[ ${AUR_WRAPPER} = "yay" ]]; then
         packages+="go "
@@ -1062,7 +1061,7 @@ _run_pacstrap() {
     else
         packages+="btrfs-progs"
     fi
-    pacstrap -K /mnt base linux linux-firmware ${packages}
+    pacstrap -K /mnt base linux linux-firmware linux-headers ${packages}
 }
 
 _run_chroot() {
@@ -1074,6 +1073,7 @@ export USERNAME
 export USER_PW_CONFIRM
 export DEVICE
 export SUDOER
+export SYMLINK
 
 cat << 'EOF' > /mnt/temp_script.sh
 #!/bin/bash
@@ -1114,6 +1114,9 @@ post_install_steps() {
         grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
     fi
     grub-mkconfig -o /boot/grub/grub.cfg
+    if [[ ${SYMLINK} = true ]]; then
+        ln -sf /usr/bin/'${TEXT_EDITOR}' /usr/bin/vi
+    fi
 }
 
 post_install_steps
