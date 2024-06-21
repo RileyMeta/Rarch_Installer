@@ -1,0 +1,1250 @@
+#!/bin/bash
+
+ENDSTYLE="\Zn"
+BOLD="\Zb"
+BOLD_END="\ZB"
+REVERSE="\Zr"
+REVERSE_END="\ZR"
+UNDERLINE="\Zu"
+UNDERLINE_END="\ZU"
+RED="\Z1"
+GREEN="\Z2"
+YELLOW="\Z3"
+BLUE="\Z4"
+MAGENTA="\Z5"
+CYAN="\Z6"
+WHITE="\Z7"
+
+BACKTITLE="Rarch Installer"
+
+# Default Values
+DEVICE=""
+SWAP=""
+FILE_SYSTEM=""
+TEXT_EDITOR=""
+root_pass_set=false
+AUR_WRAPPER="none"
+DESKTOP="None (TTY Only)"
+account_created=false
+HOST_NAME=""
+SELECTED_LOCALE="en_US.UTF-8"
+prompt_argument=1
+ERROR=0
+ROOT_INCORRECT=1
+
+trap 'aborted' INT
+
+aborted() {
+    clear
+    echo "Your App has been Aborted."
+    echo "If this was due to a bug or issue, please report it to the the Github."
+    exit 0
+}
+
+init_test() {
+    total_ram=$(free -m | awk '/^Mem:/{print $2}')
+
+    if [ "$total_ram" -le 2048 ]; then
+        _ram_fail
+    else
+        ping -c 1 google.com && main || _ping_fail
+    fi
+}
+
+_menu_checks() {
+    clear
+    prompt=""
+    case $prompt_argument in
+        1) prompt+="${BOLD}Welcome to My Arch Linux Installer${ENDSTYLE}"
+           prompt+="\nBelow are all the available steps.";;
+        2) prompt+="${BOLD}Please review all your info below.${ENDSTYLE}"
+           prompt+="\nIf there are any changes you would like to make, simply type the label name"
+           prompt+="\nand you will be taken to that section so you can make changes.";;
+        3) prompt+="${RED}${BOLD}The script cannot conitnue, please select your storage drive.${ENDSTYLE}";;
+        4) prompt+="${RED}${BOLD}The script cannot conitnue, please select a Filesystem.${ENDSTYLE}";;
+        5) prompt+="${RED}${BOLD}The script cannot conitnue, please select a Text Editor.${ENDSTYLE}";;
+        6) prompt+="${RED}${BOLD}The script cannot conitnue, please set a root password.${ENDSTYLE}";;
+        7) prompt+="${RED}${BOLD}The script cannot conitnue, please select a Desktop.${ENDSTYLE}";;
+        8) prompt+="${RED}${BOLD}The script cannot conitnue, please set a Hostname.${ENDSTYLE}";;
+    esac
+    LOCALE_LABEL="Locale: ${GREEN}${SELECTED_LOCALE}${ENDSTYLE}"
+    if [[ ${NEW_HOST_NAME} != "" ]]; then
+        HOSTNAME_LABEL="Hostname: ${GREEN}${NEW_HOST_NAME}${ENDSTYLE}" 
+    else
+        HOSTNAME_LABEL="Hostname: ${RED}not set${ENDSTYLE}"
+    fi
+    if [[ $DEVICE != "" ]]; then
+        DISKS_LABEL="Disk Selection: ${GREEN}${DEVICE}${ENDSTYLE}"
+    else
+        DISKS_LABEL="Disk Selection: ${RED}not set${ENDSTYLE}" 
+    fi
+    if [[ $FILE_SYSTEM != '' ]]; then
+        FS_LABEL="File System: ${GREEN}${FILE_SYSTEM}${ENDSTYLE}" 
+    else
+        FS_LABEL="File System: ${RED}not set${ENDSTYLE}"
+    fi
+    if [[ $SWAP = true ]]; then
+        SWAP_LABEL="Swap: ${CYAN}Enabled${ENDSTYLE}"
+    else
+        SWAP_LABEL="Swap: ${CYAN}Disabled${ENDSTYLE}"
+    fi
+    if [[ $TEXT_EDITOR != '' ]]; then
+        if [[ $SYMLINK = true ]]; then
+            TEXT_EDITOR_LABEL="Text Editor: ${GREEN}${TEXT_EDITOR}*${ENDSTYLE}"
+        else
+            TEXT_EDITOR_LABEL="Text Editor: ${GREEN}${TEXT_EDITOR}${ENDSTYLE}"
+        fi
+    elif [[ $TEXT_EDITOR = 'none' ]]; then
+        TEXT_EDITOR_LABEL="Text Editor: ${GREEN}None${ENDSTYLE}"
+    else
+        TEXT_EDITOR_LABEL="Text Editor: ${RED}not set${ENDSTYLE}"
+    fi
+    if [[ $root_pass_set = true ]]; then
+        ROOT_PASS_LABEL="Root Password: ${GREEN}set${ENDSTYLE}" 
+    else
+        ROOT_PASS_LABEL="Root Password: ${RED}not set${ENDSTYLE}"
+    fi
+    if [[ $AUR_WRAPPER != 'none' ]]; then
+        AUR_LABEL="AUR Wrapper: ${GREEN}${AUR_WRAPPER}${ENDSTYLE}"
+    else
+        AUR_LABEL="AUR Wrapper: ${CYAN}None Chosen${ENDSTYLE}"
+    fi
+    DESKTOP_LABEL="Desktop: ${GREEN}${DESKTOP}${ENDSTYLE}" 
+    if [[ $account_created = true ]]; then
+        if [[ $SUDOER = true ]]; then
+            USER_ACCOUNT_LABEL="User Account: ${GREEN}${NEW_USERNAME}${ENDSTYLE}*"
+        else
+            USER_ACCOUNT_LABEL="User Account: ${GREEN}${NEW_USERNAME}${ENDSTYLE}"
+        fi
+    else
+        USER_ACCOUNT_LABEL="User Account: ${CYAN}No User Account${ENDSTYLE}"
+    fi
+    if [[ $ERROR != 1 ]]; then
+        MAIN_TITLE="Main Menu"
+    else
+        MAIN_TITLE="An Error has occurred"
+    fi
+}
+
+main() {
+    _menu_checks
+    while true; do
+    mainMenuOptions=(
+    1 "${LOCALE_LABEL}"
+    2 "${HOSTNAME_LABEL}"
+    3 "${DISKS_LABEL}"
+    4 "${FS_LABEL}"
+    5 "${SWAP_LABEL}"
+    6 "${ROOT_PASS_LABEL}"
+    7 "${USER_ACCOUNT_LABEL}"
+    8 "${TEXT_EDITOR_LABEL}"
+    9 "${DESKTOP_LABEL}"
+    10 "${AUR_LABEL}"
+    11 "${GREEN}${REVERSE} Install ${ENDSTYLE}"
+)
+result=$(dialog --clear --title "${MAIN_TITLE}" \
+    --backtitle "$BACKTITLE" \
+    --colors \
+    --cancel-label "Exit" \
+    --stdout \
+    --menu "${prompt}" 0 0 10 "${mainMenuOptions[@]}")
+
+case $? in
+    0)  case $result in
+            1) locale_selection
+                break ;;
+            2) hostname
+                break ;;
+            3) disk_selection
+                break ;;
+            4) filesystem
+                break ;;
+            5) swap_config
+                break ;;
+            6) root_password
+                break ;;
+            7) account_creation
+                break ;;
+            8) texteditor
+                break ;;
+            9) choose_desktop
+                break ;;
+            10) aur_wrapper
+                break ;;
+            11) _install_check
+                break ;;
+        esac
+        ;;
+    1) clear 
+        exit 1 ;;
+esac
+    done
+}
+
+locale_selection() {
+    while true; do
+    localeOptions=(
+    1 "af_ZA"
+    2 "sq_AL"
+    3 "ar_SA"
+    4 "eu_ES"
+    5 "be_BY"
+    6 "bs_BA"
+    7 "bg_BG"
+    8 "ca_ES"
+    9 "hr_HR"
+    10 "zh_CN"
+    11 "zh_TW"
+    12 "cs_CZ"
+    13 "da_DK"
+    14 "nl_NL"
+    15 "en"
+    16 "et_EE"
+    17 "fa_IR"
+    18 "fil_PH"
+    19 "fi_FI"
+    20 "fr_FR"
+    21 "fr_CA"
+    22 "ga"
+    23 "gl_ES"
+    24 "ka_GE"
+    25 "de_DE"
+    26 "el_GR"
+    27 "gu"
+    28 "he_IL"
+    29 "hi_IN"
+    30 "hu"
+    31 "is_IS"
+    32 "id_ID"
+    33 "it_IT"
+    34 "ja_JP"
+    35 "kn_IN"
+    36 "km_KH"
+    37 "ko_KR"
+    38 "lo_LA"
+    39 "lt_LT"
+    40 "lat"
+    41 "ml_IN"
+    42 "ms_MY"
+    43 "mi_NZ"
+    44 "mi_NZ"
+    45 "mn"
+    46 "no_NO"
+    47 "no_NO"
+    48 "nn_NO"
+    49 "pl"
+    50 "pt_PT"
+    51 "pt_BR"
+    52 "ro_RO"
+    53 "ru_RU"
+    54 "mi_NZ"
+    55 "sr_CS"
+    56 "sk_SK"
+    57 "sl_SI"
+    58 "so_SO"
+    59 "es_ES"
+    60 "sv_SE"
+    61 "tl"
+    62 "ta_IN"
+    63 "th_TH"
+    64 "mi_NZ"
+    65 "tr_TR"
+    66 "uk_UA"
+    67 "vi_VN"
+    68 "fr_CH"
+    69 "fr_BE"
+    70 "skip"
+)
+result=$(dialog --clear --title "Locale Selecttion" \
+    --backtitle "$BACKTITLE" \
+    --colors \
+    --cancel-label "BACK" \
+    --stdout \
+    --menu "\nPlease select your preferred console text editor" 0 0 12 "${localeOptions[@]}")
+
+case $? in
+    0)  case $result in
+            1) SELECTED_LOCALE="af_ZA"
+                main 
+                break;;
+            2) SELECTED_LOCALE="sq_AL"
+                main 
+                break;;
+            3) SELECTED_LOCALE="ar_SA"
+                main 
+                break;;
+            4) SELECTED_LOCALE="eu_ES"
+                main 
+                break;;
+            5) SELECTED_LOCALE="be_BY"
+                main 
+                break;;
+            6) SELECTED_LOCALE="bs_BA"
+                main 
+                break;;
+            7) SELECTED_LOCALE="bg_BG"
+                main 
+                break;;
+            8) SELECTED_LOCALE="ca_ES"
+                main 
+                break;;
+            9) SELECTED_LOCALE="hr_HR"
+                main 
+                break;;
+            10) SELECTED_LOCALE="zh_CN"
+                main 
+                break;;
+            11) SELECTED_LOCALE="zh_TW"
+                main 
+                break;;
+            12) SELECTED_LOCALE="cs_CZ"
+                main 
+                break;;
+            13) SELECTED_LOCALE="da_DK"
+                main 
+                break;;
+            14) SELECTED_LOCALE="nl_NL"
+                main 
+                break;;
+            15) SELECTED_LOCALE="en"
+                main 
+                break;;
+            16) SELECTED_LOCALE="et_EE"
+                main 
+                break;;
+            17) SELECTED_LOCALE="fa_IR"
+                main 
+                break;;
+            18) SELECTED_LOCALE="fil_PH"
+                main 
+                break;;
+            19) SELECTED_LOCALE="fi_FI"
+                main 
+                break;;
+            20) SELECTED_LOCALE="fr_FR"
+                main 
+                break;;
+            21) SELECTED_LOCALE="fr_CA"
+                main 
+                break;;
+            22) SELECTED_LOCALE="ga"
+                main 
+                break;;
+            23) SELECTED_LOCALE="gl_ES"
+                main 
+                break;;
+            24) SELECTED_LOCALE="ka_GE"
+                main 
+                break;;
+            25) SELECTED_LOCALE="de_DE"
+                main 
+                break;;
+            26) SELECTED_LOCALE="el_GR"
+                main 
+                break;;
+            27) SELECTED_LOCALE="gu"
+                main 
+                break;;
+            28) SELECTED_LOCALE="he_IL"
+                main 
+                break;;
+            29) SELECTED_LOCALE="hi_IN"
+                main 
+                break;;
+            30) SELECTED_LOCALE="hu"
+                main 
+                break;;
+            31) SELECTED_LOCALE="is_IS"
+                main 
+                break;;
+            32) SELECTED_LOCALE="id_ID"
+                main 
+                break;;
+            33) SELECTED_LOCALE="it_IT"
+                main 
+                break;;
+            34) SELECTED_LOCALE="ja_JP"
+                main 
+                break;;
+            35) SELECTED_LOCALE="kn_IN"
+                main 
+                break;;
+            36) SELECTED_LOCALE="km_KH"
+                main 
+                break;;
+            37) SELECTED_LOCALE="ko_KR"
+                main 
+                break;;
+            38) SELECTED_LOCALE="lo_LA"
+                main 
+                break;;
+            39) SELECTED_LOCALE="lt_LT"
+                main 
+                break;;
+            40) SELECTED_LOCALE="lat"
+                main 
+                break;;
+            41) SELECTED_LOCALE="ml_IN"
+                main 
+                break;;
+            42) SELECTED_LOCALE="ms_MY"
+                main 
+                break;;
+            43) SELECTED_LOCALE="mi_NZ"
+                main 
+                break;;
+            44) SELECTED_LOCALE="mi_NZ"
+                main 
+                break;;
+            45) SELECTED_LOCALE="mn"
+                main 
+                break;;
+            46) SELECTED_LOCALE="no_NO"
+                main 
+                break;;
+            47) SELECTED_LOCALE="no_NO"
+                main 
+                break;;
+            48) SELECTED_LOCALE="nn_NO"
+                main 
+                break;;
+            49) SELECTED_LOCALE="pl"
+                main 
+                break;;
+            50) SELECTED_LOCALE="pt_PT"
+                main 
+                break;;
+            51) SELECTED_LOCALE="pt_BR"
+                main 
+                break;;
+            52) SELECTED_LOCALE="ro_RO"
+                main 
+                break;;
+            53) SELECTED_LOCALE="ru_RU"
+                main 
+                break;;
+            54) SELECTED_LOCALE="mi_NZ"
+                main 
+                break;;
+            55) SELECTED_LOCALE="sr_CS"
+                main 
+                break;;
+            56) SELECTED_LOCALE="sk_SK"
+                main 
+                break;;
+            57) SELECTED_LOCALE="sl_SI"
+                main 
+                break;;
+            58) SELECTED_LOCALE="so_SO"
+                main 
+                break;;
+            59) SELECTED_LOCALE="es_ES"
+                main 
+                break;;
+            60) SELECTED_LOCALE="sv_SE"
+                main 
+                break;;
+            61) SELECTED_LOCALE="tl"
+                main 
+                break;;
+            62) SELECTED_LOCALE="ta_IN"
+                main 
+                break;;
+            63) SELECTED_LOCALE="th_TH"
+                main 
+                break;;
+            64) SELECTED_LOCALE="mi_NZ"
+                main 
+                break;;
+            65) SELECTED_LOCALE="tr_TR"
+                main 
+                break;;
+            66) SELECTED_LOCALE="uk_UA"
+                main 
+                break;;
+            67) SELECTED_LOCALE="vi_VN"
+                main 
+                break;;
+            68) SELECTED_LOCALE="fr_CH"
+                main 
+                break;;
+            69) SELECTED_LOCALE="fr_BE"
+                main 
+                break;;
+            70) main 
+                break;;
+        esac
+        ;;
+    1) main;;
+esac
+    done
+}
+
+_install_check() {
+    if [[ $NEW_HOST_NAME = "" ]]; then
+        prompt_argument=8
+        ERROR=1
+        main
+    elif [[ $DEVICE = "" ]]; then
+        prompt_argument=3
+        ERROR=1
+        main
+    elif [[ $FILE_SYSTEM = "" ]]; then
+        prompt_argument=4
+        ERROR=1
+        main
+    elif [[ $ROOT_PW_CONFIRM = "" ]]; then
+        prompt_argument=6
+        ERROR=1
+        main
+    elif [[ $TEXT_EDITOR = "" ]]; then
+        prompt_argument=5
+        ERROR=1
+        main
+    else
+        SYSTEM_INSTALL
+    fi
+}
+
+disk_selection() {
+    DISK_SELECT_PROMPT="Below are your Available Storage Devices:\n"
+    output=$(lsblk -Ald -o NAME,SIZE,RM)
+
+    while IFS= read -r line; do
+        name=$(echo "$line" | awk '{print $1}')
+        size=$(echo "$line" | awk '{print $2}')
+        rm=$(echo "$line" | awk '{print $3}')
+
+        if [[ "$name" != *"SWAP"* && "$name" != *"zram0"* && "$name" != *"NAME"* ]]; then
+            if [[ "$rm" -eq 1 ]]; then
+                DISK_SELECT_PROMPT+="\n$name ${BLUE}${size}${ENDSTYLE} ${REVERSE}${YELLOW}[Removable]${ENDSTYLE}"
+            else
+                DISK_SELECT_PROMPT+="\n$name ${BLUE}${size}${ENDSTYLE}"
+            fi
+        fi
+    done <<< "$output"
+    DISK_SELECT_PROMPT+="\n\nPlease Select the Disk you would like to install Linux to"
+    mapfile -t options < <(lsblk -Ald -o NAME | tail -n +2)
+
+    menu_options=""
+    i=1
+    for option in "${options[@]}"; do
+        if [[ "$option" != "zram0" && "$option" != "NAME" && "$option" != *SWAP* ]]; then
+            menu_options+="$i $option "
+            ((i++))
+        fi
+    done
+
+    exec 3>&1
+    selection=$(dialog --clear \
+                       --backtitle "${BACKTITLE}" \
+                       --colors \
+                       --title "Disk Selection" \
+                       --cancel-label "BACK" \
+                       --ok-label "SELECT" \
+                       --menu "${DISK_SELECT_PROMPT}" 0 0 0 \
+                       $menu_options \
+                       2>&1 1>&3)
+    exec 3>&-
+
+    if [ -n "$selection" ]; then
+        chosen_option=$(echo "$menu_options" | awk -v sel="$selection" '{for(i=1; i<=NF; i+=2) if($i == sel) print $(i+1)}')
+        DEVICE="/dev/$chosen_option"
+        STEP_CONFIRM=1
+        CONFIRM_MESSAGE=1
+        _drive_confirmation
+    else
+        main
+    fi
+}
+
+_drive_confirmation() {
+    clear
+    if dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --colors \
+    --title "Disk Confirmation" \
+    --yesno "Are you sure you would like to use ${CYAN}${DEVICE}${ENDSTYLE}?" 0 0 ; then
+        main
+    else
+        DEVICE=""
+        disk_selection
+    fi
+}
+
+hostname() {
+    local NEW_HOST_NAME
+    NEW_HOST_NAME=$(dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --colors \
+    --title "Hostname" \
+    --inputbox "Please set the Hostname for your computer:" 8 40 \
+    --output-fd 1)
+
+    if [ $? -eq 0 ]; then
+        prompt_argument=1
+        ERROR=0
+        main
+    else
+        main
+    fi
+}
+
+filesystem() {
+    while true; do
+    filesystemOptions=(
+    1 "EXT4"
+    2 "BTRFS"
+)
+result=$(dialog --clear --title "Filesystem Selection" \
+    --backtitle "$BACKTITLE" \
+    --colors \
+    --cancel-label "Exit" \
+    --stdout \
+    --menu "\nPlease select your preferred file system" 0 0 3 "${filesystemOptions[@]}")
+
+case $? in
+    0)  case $result in
+            1) FILE_SYSTEM="ext4"
+                echo "${FILE_SYSTEM}"
+                main
+                break ;;
+            2) FILE_SYSTEM="btrfs"
+                echo "${FILE_SYSTEM}"
+                main
+                break ;;
+        esac
+        ;;
+    1) main;;
+esac
+    done
+}
+
+swap_config() {
+    clear
+    if dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --colors \
+    --title "Swap Partition" \
+    --yesno "\nWould you like to use a ${CYAN}2GiB${ENDSTYLE} swap partition?" 0 0 ; then
+        SWAP=true
+        main
+    else
+        SWAP=false
+        main
+    fi
+}
+
+_root_pass_error() {        
+    case ${ROOT_INCORRECT} in
+        1) ROOT_PW_TITLE="Root Password"
+            ROOT_PW_MSG="Please input your root Password";;
+        2) ROOT_PW_TITLE="Please Try Again"
+            ROOT_PW_MSG="The passwords you entered did not match. \nPlease try again.";;
+        3) ROOT_PW_TITLE="Please Try Again"
+            ROOT_PW_MSG="The Root Password cannot be blank. \nPlease try again.";;
+    esac
+}
+
+root_password() {
+    _root_pass_error
+    ROOT_PW=$(dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --title "${ROOT_PW_TITLE}" \
+    --insecure \
+    --passwordbox "${ROOT_PW_MSG}" 0 0 \
+    --output-fd 1)
+
+    if [$? -eq 1 ]; then
+        main
+    else
+        if [[ $ROOT_PW != "" ]]; then 
+            _confirm_root_pw
+        else
+            ROOT_INCORRECT=3
+            root_password
+        fi
+    fi
+}
+
+_confirm_root_pw() {
+    ROOT_PW_CONFIRM=$(dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --title "Root Password" \
+    --insecure \
+    --passwordbox "Please confirm your root Password" 0 0 \
+    --output-fd 1)
+
+    if [$? -eq 1 ]; then
+        main
+    else
+        if [[ $ROOT_PW_CONFIRM = $ROOT_PW ]]; then
+            root_pass_set=true
+            main
+        else
+            ROOT_INCORRECT=2
+            root_password
+        fi
+    fi
+}
+
+account_creation() {
+    if [[ $USERNAME_INCORRECT = true ]]; then
+        USERNAME_PROMPT="A username cannot be blank. \nPlease try again."
+    else
+        USERNAME_PROMPT="Please type your username:"
+    fi
+    USERNAME=$(dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --title "User Account Creation" \
+    --insecure \
+    --inputbox "${USERNAME_PROMPT}" 0 0 \
+    --output-fd 1)
+
+    if [$? -eq 1 ]; then
+        main
+    else
+        if [[ $USERNAME != "" ]]; then 
+            USER_INCORRECT=1 # Default / Normal response
+            NEW_USERNAME="${USERNAME,,}"
+            user_password_check
+        else
+            USERNAME_INCORRECT=true
+            account_creation
+        fi
+    fi
+}
+
+user_password_check() {
+    if dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --colors \
+    --title "User Account Password" \
+    --yesno "Would you like ${BLUE}${NEW_USERNAME}${ENDSTYLE} to have a password?" 0 0; 
+    then
+        user_password
+    else
+        account_created=true
+        main
+    fi
+}
+
+user_sudoers_check() {
+    if dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --colors \
+    --title "Sudoers" \
+    --yesno "Would you like ${BLUE}${NEW_USERNAME}${ENDSTYLE} to be a sudoer?" 0 0; 
+    then
+        SUDOER=true
+        main
+    else
+        SUDOER=false
+        main
+    fi
+}
+
+_user_pass_error() {        
+    case ${USER_INCORRECT} in
+        "1") USER_PW_MSG="Please input your user Password";;
+        "2") USER_PW_MSG="The passwords you entered did not match. \nPlease try again.";;
+        "3") USER_PW_MSG="The User Password cannot be blank. \nPlease try again.";;
+    esac
+}
+
+user_password() {
+    _user_pass_error
+    USER_PW=$(dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --title "User Password" \
+    --insecure \
+    --passwordbox "${USER_PW_MSG}" 0 0 \
+    --output-fd 1)
+
+    if [$? -eq 1 ]; then
+        main
+    else
+        if [[ $USER_PW != "" ]]; then 
+            _confirm_user_pw
+        else
+            USER_INCORRECT=3
+            user_password
+        fi
+    fi
+}
+
+_confirm_user_pw() {
+    USER_PW_CONFIRM=$(dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --title "User Password" \
+    --insecure \
+    --passwordbox "Please confirm your user Password" 0 0 \
+    --output-fd 1)
+
+    if [$? -eq 1 ]; then
+        main
+    else
+        if [[ $USER_PW_CONFIRM = $USER_PW ]]; then
+            user_pass_set=true
+            account_created=true
+            user_sudoers_check
+        else
+            USER_INCORRECT=2
+            user_password
+        fi
+    fi
+}
+
+texteditor() {
+    while true; do
+    texteditorOptions=(
+    1 "Vi"
+    2 "Vim"
+    3 "NeoVim"
+    4 "Nano"
+    5 "Emacs"
+    6 "None"
+)
+result=$(dialog --clear --title "Text Editor Selection" \
+    --backtitle "$BACKTITLE" \
+    --colors \
+    --cancel-label "BACK" \
+    --stdout \
+    --menu "\nPlease select your preferred console text editor" 0 0 6 "${texteditorOptions[@]}")
+
+case $? in
+    0)  case $result in
+            1) TEXT_EDITOR="vi"
+                main
+                break ;;
+            2) TEXT_EDITOR="vim"
+                main
+                break ;;
+            3) TEXT_EDITOR="neovim"
+                text_editor_symlink
+                break ;;
+            4) TEXT_EDITOR="nano"
+                text_editor_symlink
+                break ;;
+            5) TEXT_EDITOR="emacs"
+                text_editor_symlink
+                break ;;
+            6) TEXT_EDITOR="none"
+                main
+                break ;;
+        esac
+        ;;
+    1) main;;
+esac
+    done
+}
+
+text_editor_symlink() {
+    if dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --colors \
+    --title "User Account Password" \
+    --yesno "Would you like to symlink ${BLUE}${TEXT_EDITOR}${ENDSTYLE} to /usr/bin/vi? \
+    \n\nThis would allow you to work with apps that require vi (like Visudo)." 0 0;
+    then
+        SYMLINK=true
+        main
+    else
+        main
+    fi
+}
+
+choose_desktop() {
+    while true; do
+    desktopOptions=(
+    1 "Gnome"
+    2 "KDE Plasma"
+    3 "XFCE"
+    4 "None (TTY Only)"
+)
+result=$(dialog --clear --title "Desktop Environment" \
+    --backtitle "$BACKTITLE" \
+    --colors \
+    --cancel-label "BACK" \
+    --stdout \
+    --menu "\nPlease select your preferred Desktop Environment" 0 0 3 "${desktopOptions[@]}")
+
+case $? in
+    0)  case $result in
+            1) DESKTOP="Gnome"
+                display_manager
+                break ;;
+            2) DESKTOP="Kde Plasma"
+                display_manager
+                break ;;
+            3) DESKTOP="XFCE"
+                display_manager
+                break ;;
+            4) DESKTOP="None (TTY Only)"
+                display_manager
+                break ;;
+        esac
+        ;;
+    1) main;;
+esac
+    done
+}
+
+display_manager() {
+    if [[ $DESKTOP = 'Gnome' ]]; then
+        GDM_PROMPT="GDM (*Recommended for Gnome)"
+    else
+        GDM_PROMPT="GDM"
+    fi
+
+    while true; do
+    displaymanagerOptions=(
+    1 "${GDM_PROMPT}"
+    2 "SDDM"
+    3 "LightDM"
+    4 "SX (StartX alternative)"
+)
+result=$(dialog --clear --title "Display Manager Selection" \
+    --backtitle "$BACKTITLE" \
+    --colors \
+    --cancel-label "Exit" \
+    --stdout \
+    --menu "\nPlease select your preferred Display Manager" 0 0 3 "${displaymanagerOptions[@]}")
+
+case $? in
+    0)  case $result in
+            1) DISPLAY_MANAGER="gdm"
+                graphics_drivers
+                break ;;
+            2) DISPLAY_MANAGER="sddm"
+                graphics_drivers
+                break ;;
+            3) DISPLAY_MANAGER="lightdm"
+                graphics_drivers
+                break ;;
+            4) DISPLAY_MANAGER="sx"
+                graphics_drivers
+                break ;;
+        esac
+        ;;
+    1) main;;
+esac
+    done
+}
+
+graphics_drivers() {
+    while true; do
+    graphicsdriverOptions=(
+    1 "Nvidia (Proprietary)"
+    2 "Nvidia (OpenKernel)"
+    3 "Nvidia (Nouveau)"
+    4 "Intel \ AMD (Mesa)"
+)
+result=$(dialog --clear --title "Graphics Driver Selection" \
+    --backtitle "$BACKTITLE" \
+    --colors \
+    --cancel-label "Exit" \
+    --stdout \
+    --menu "\nPlease select your preferred graphics driver" 0 0 3 "${graphicsdriverOptions[@]}")
+
+case $? in
+    0)  case $result in
+            1) GRAPHICS_DRIVER="nvidia-dkms nvidia-utils"
+                main
+                break ;;
+            2) GRAPHICS_DRIVER="nvidia-open-dkms"
+                main
+                break ;;
+            3) GRAPHICS_DRIVER="xf86-video-nouveau vulkan-nouveau"
+                main
+                break ;;
+            4) GRAPHICS_DRIVER="mesa"
+                main
+                break ;;
+        esac
+        ;;
+    1) main;;
+esac
+    done
+}
+
+aur_wrapper() {
+    while true; do
+    aurwrapperOptions=(
+    1 "Yay (Written in Go)"
+    2 "Paru (Written in Rust)"
+    3 "None"
+)
+result=$(dialog --clear --title "Aur Wrapper" \
+    --backtitle "$BACKTITLE" \
+    --colors \
+    --cancel-label "BACK" \
+    --stdout \
+    --menu "\nAn AUR Wrapper (or Helper) is a tool that automates installing dependencies and packages from the Arch User Repository." 0 0 3 "${aurwrapperOptions[@]}")
+
+case $? in
+    0)  case $result in
+            1) AUR_WRAPPER="yay"
+                main
+                break ;;
+            2) AUR_WRAPPER="paru"
+                main
+                break ;;
+            3) AUR_WRAPPER="none"
+                main
+                break ;;
+        esac
+        ;;
+    1) main;;
+esac
+    done
+}
+
+show_message() {
+    local message=$1
+    dialog --title "System Setup" --infobox "$message" 10 50
+}
+
+SYSTEM_INSTALL() {
+
+    show_message "Configuring Pacman..."
+    sed -i 's/#ParallelDownloads = 5/ParallelDownloads = 10/g' /etc/pacman.conf >> /tmp/infobox_output 2>&1
+    sleep 1
+
+    show_message "Configuring Pacman..."
+    sed -i 's/#Color/Color/g' /etc/pacman.conf >> /tmp/infobox_output 2>&1
+    sleep 1
+
+    show_message "Configuring Pacman..."
+    sed -i 's/#VerbosePkgLists/VerbosePkgLists/g' /etc/pacman.conf >> /tmp/infobox_output 2>&1
+    sleep 1
+    
+    show_message "Disk Partitioning..."
+        fdisk "${DEVICE}" <<EOF
+g
+w
+EOF  >> /tmp/infobox_output 2>&1
+
+    show_message "Disk Partitioning..."
+    if [[ $SWAP != true ]]; then
+        fdisk "$DEVICE" <<EOF
+n
+1
+    # !important! Accept Default Value
++512MiB
+n
+2
+    # !important! Accept Default Value
+    # !important! Accept Default Value
+w
+EOF >> /tmp/infobox_output 2>&1
+    else
+        fdisk "$DEVICE" <<EOF
+n
+1
+    # !important! Accept Default Value
++512MiB
+n
+2
+    # !important! Accept Default Value
++2GiB
+w
+n
+3
+    # !important! Accept Default Value
+    # !important! Accept Default Value
+w
+EOF >> /tmp/infobox_output 2>&1
+    fi
+    sleep 2
+    
+    show_message "Creating Boot Parition..."
+    if [[ "$DEVICE" == *"nvme"* ]]; then
+        BOOT_DEVICE="${DEVICE}p1"
+        mkfs.fat -F 32 "${BOOT_DEVICE}" >> /tmp/infobox_output 2>&1
+    else
+        BOOT_DEVICE="${DEVICE}1"
+        mkfs.fat -F 32 "${BOOT_DEVICE}" >> /tmp/infobox_output 2>&1
+    fi
+    sleep 2
+
+    if [[ $SWAP = true ]]; then
+        show_message "Creating the Swap Partition..."
+        if [[ "$DEVICE" == *"nvme"* ]]; then
+            SWAP_DEVICE="${DEVICE}p2"
+            mkswap ${SWAP_DEVICE} >> /tmp/infobox_output 2>&1
+        else
+            SWAP_DEVICE="${DEVICE}2"
+            mkswap ${SWAP_DEVICE} >> /tmp/infobox_output 2>&1
+        fi
+        sleep 2
+    fi
+
+    if [[ $SWAP = true ]]; then
+        show_message "Enabling Swap..."
+        if [[ "$DEVICE" == *"nvme"* ]]; then
+            SWAP_DEVICE="${DEVICE}p2"
+            swapon ${SWAP_DEVICE} >> /tmp/infobox_output 2>&1
+        else
+            SWAP_DEVICE="${DEVICE}2"
+            swapon ${SWAP_DEVICE} >> /tmp/infobox_output 2>&1
+        fi
+        sleep 2
+    fi
+
+    show_message "Creating Filesystem..."
+    if [[ "$DEVICE" == *"nvme"* ]]; then
+        FORMAT_DEVICE="${DEVICE}p"
+    else
+        FORMAT_DEVICE="${DEVICE}"
+    fi
+    if [[ $SWAP = true ]]; then
+        FORMAT_DEVICE+="3"
+    else
+        FORMAT_DEVICE+="2"
+    fi
+    if [[ $FILE_SYSTEM = "ext4" ]]; then
+        mkfs.ext4 "${FORMAT_DEVICE}" >> /tmp/infobox_output 2>&1
+    elif [[ $FILE_SYSTEM = "btrfs" ]]; then
+        mkfs.btrfs "${FORMAT_DEVICE}" >> /tmp/infobox_output 2>&1
+    fi
+    sleep 2
+
+    show_message "Mounting the Root Parition..."
+    mount --mkdir "${FORMAT_DEVICE}" /mnt >> /tmp/infobox_output 2>&1
+    sleep 1
+
+    show_message "Mounting the Boot Partition..."
+    mount --mkdir "${BOOT_DEVICE}" /mnt/boot  >> /tmp/infobox_output 2>&1
+    sleep 1
+
+    show_message "Installing Base System..."
+    packages="sudo git curl wget efibootmgr grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils ${TEXT_EDITOR} ${DISPLAY_MANAGER} "
+    if [[ ${DESKTOP} = "Gnome" ]]; then
+        packages+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome "
+    elif [[ ${DESKTOP} =  "Kde Plasma" ]]; then
+        packages+="plasma plasma-meta xdg-desktop-portal-kde "
+    elif [[ ${DESKTOP} =  "XFCE" ]]; then
+        packages+="xfce4 xfce4-goodies "
+    fi
+    if [[ ${AUR_WRAPPER} = "yay" ]]; then
+        packages+="go "
+    fi
+    if [[ ${FILE_SYSTEM} = 'ext4' ]]; then
+        packages+="e2fsprogs "
+    else
+        packages+="btrfs-progs "
+    fi
+    pacstrap -K /mnt base linux linux-firmware linux-headers ${packages} >> /tmp/infobox_output 2>&1
+    sleep 2
+    
+    show_message "Generating FStab..."
+    genfstab -U /mnt >> /mnt/etc/fstab >> /tmp/infobox_output 2>&1
+    sleep 1
+
+    show_message "Enabling SystemD Services..."
+    systemd-nspawn -D /mnt --bind /sys --bind /proc --bind /dev -- systemctl enable ${DISPLAY_MANAGER} >> /tmp/infobox_output 2>&1
+    sleep 0.5
+
+    show_message "Enabling SystemD Services..."
+    systemd-nspawn -D /mnt --bind /sys --bind /proc --bind /dev -- systemctl enable NetworkManager >> /tmp/infobox_output 2>&1
+    sleep 0.5
+
+    show_message "Running Chroot Steps..."
+    _run_chroot >> /tmp/infobox_output 2>&1
+    sleep 1
+
+    SUCCESSFUL_FINISH
+}
+
+_run_chroot() {
+
+export NEW_HOST_NAME
+export SELECTED_LOCALE
+export ROOT_PW_CONFIRM
+export USERNAME
+export USER_PW_CONFIRM
+export DEVICE
+export SUDOER
+export SYMLINK
+
+cat << 'EOF' > /mnt/temp_script.sh
+#!/bin/bash
+
+post_install_steps() {
+    echo "${NEW_HOST_NAME}" > /etc/hostname
+    echo "LANG=${SELECTED_LOCALE}" > /etc/locale.conf
+    echo root:$ROOT_PW_CONFIRM | chpasswd
+    useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
+    echo $USERNAME:$USER_PW_CONFIRM | chpasswd
+    systemctl enable gdm
+    if [[ AUR_WRAPPER = "yay" ]]; then
+        cd /tmp
+        git clone https://aur.archlinux.org/yay.git
+        chown -R $USERNAME yay/
+        cd yay/
+        su -c "makepkg" $USERNAME
+        pacman -U --no-confirm yay-*.pkg.tar.zst
+    elif [[ AUR_WRAPPER = "paru" ]]; then
+        cd /tmp
+        git clone https://aur.archlinux.org/paru.git
+        chown -R $USERNAME paru/
+        cd paru/
+        su -c "makepkg" $USERNAME
+        pacman -U --no-confirm paru-*.pkg.tar.zst
+    else
+        clear
+    fi
+    rm -rf /tmp/*
+    if [[ $SUDOER = true ]]; then
+        sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
+    fi
+    if [[ $DEVICE != "nvme0n1" ]]; then
+        mount "${DEVICE}1" /boot
+        grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+    else
+        mount "${DEVICE}p1" /boot
+        grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+    fi
+    grub-mkconfig -o /boot/grub/grub.cfg
+    if [[ ${SYMLINK} = true ]]; then
+        ln -sf /usr/bin/'${TEXT_EDITOR}' /usr/bin/vi
+    fi
+}
+
+post_install_steps
+EOF
+
+chmod +x /mnt/temp_script.sh
+arch-chroot /mnt /temp_script.sh
+rm /mnt/temp_script.sh
+
+}
+
+SUCCESSFUL_FINISH() {
+    if dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --colors \
+    --title "Installation Successful!" \
+    --yesno "\nWould you like to reboot?" 0 0;
+    then
+        reboot_timer
+    else
+        prompt_argument=2
+        main
+    fi
+}
+
+reboot_timer() {
+    for i in {5..1}; do
+        clear
+        reboot_prompt="The system will restart in ${i}"
+        reboot_prompt+="\n\nPress Ctrl+C to cancel"
+        echo -e "${reboot_prompt}"
+        sleep 1
+    done
+    umount -R /mnt
+    reboot now --no-wall
+}
+
+main
