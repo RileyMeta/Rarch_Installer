@@ -778,17 +778,17 @@ SYSTEM_INSTALL() {
     show_message "Configuring Pacman..."
     sed -i 's/#ParallelDownloads = 5/ParallelDownloads = 10/g' /etc/pacman.conf 
     echo "Enabling: Parallel Downloads" >> /tmp/infobox_output 2>&1
-    sleep 1
+    sleep 0.25
 
     show_message "Configuring Pacman..."
     sed -i 's/#Color/Color/g' /etc/pacman.conf 
     echo "Enabling: Colorful Output" >> /tmp/infobox_output 2>&1
-    sleep 1
+    sleep 0.25
 
     show_message "Configuring Pacman..."
     sed -i 's/#VerbosePkgLists/VerbosePkgLists/g' /etc/pacman.conf 
     echo "Enabling: Verbose Package Lists" >> /tmp/infobox_output 2>&1
-    sleep 1
+    sleep 0.25
     
     show_message "Disk Partitioning..."
         fdisk "$DEVICE" <<EOF
@@ -807,7 +807,7 @@ t
 w
 EOF >> /tmp/infobox_output 2>&1
 
-    if [[ $SWAP != true ]]; then
+    if [[ $SWAP = true ]]; then
         show_message "Creating Swap Partition..."
         fdisk "$DEVICE" <<EOF
 n
@@ -822,8 +822,8 @@ EOF >> /tmp/infobox_output 2>&1
     sleep 2
     fi
 
-    if [[ $SWAP != true ]]; then
-        show_message "Creating Swap Partition..."
+    if [[ $SWAP = true ]]; then
+        show_message "Creating Root Partition..."
         fdisk "$DEVICE" <<EOF
 n
 3
@@ -833,7 +833,7 @@ w
 EOF >> /tmp/infobox_output 2>&1
     sleep 2
     else
-        show_message "Creating Swap Partition..."
+        show_message "Creating Root Partition..."
         fdisk "$DEVICE" <<EOF
 n
 2
