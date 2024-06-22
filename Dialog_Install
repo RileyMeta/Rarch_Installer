@@ -791,44 +791,58 @@ SYSTEM_INSTALL() {
     sleep 1
     
     show_message "Disk Partitioning..."
-        fdisk "${DEVICE}" <<EOF
+        fdisk "$DEVICE" <<EOF
 g
 w
 EOF  >> /tmp/infobox_output 2>&1
 
-    show_message "Disk Partitioning..."
-    if [[ $SWAP != true ]]; then
-        fdisk "$DEVICE" <<EOF
+    show_message "Creating Boot Partition..."
+    fdisk "$DEVICE" <<EOF
 n
 1
-    # !important! Accept Default Value
+
 +512MiB
-n
-2
-    # !important! Accept Default Value
-    # !important! Accept Default Value
+t
+1
 w
 EOF >> /tmp/infobox_output 2>&1
-    else
+
+    if [[ $SWAP != true ]]; then
+        show_message "Creating Swap Partition..."
         fdisk "$DEVICE" <<EOF
 n
-1
-    # !important! Accept Default Value
-+512MiB
-n
 2
-    # !important! Accept Default Value
+
 +2GiB
+t
+2
+swap
 w
+EOF >> /tmp/infobox_output 2>&1
+    sleep 2
+    fi
+
+    if [[ $SWAP != true ]]; then
+        show_message "Creating Swap Partition..."
+        fdisk "$DEVICE" <<EOF
 n
 3
-    # !important! Accept Default Value
-    # !important! Accept Default Value
+
+
+w
+EOF >> /tmp/infobox_output 2>&1
+    sleep 2
+    else
+        show_message "Creating Swap Partition..."
+        fdisk "$DEVICE" <<EOF
+n
+2
+
+
 w
 EOF >> /tmp/infobox_output 2>&1
     fi
-    sleep 2
-    
+
     show_message "Creating Boot Parition..."
     if [[ "$DEVICE" == *"nvme"* ]]; then
         BOOT_DEVICE="${DEVICE}p1"
