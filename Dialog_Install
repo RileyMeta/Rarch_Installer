@@ -811,7 +811,7 @@ EOF >> /tmp/infobox_output 2>&1
         show_message "Creating Swap Partition..."
         fdisk "$DEVICE" <<EOF
 n
-2
+
 
 +2GiB
 t
@@ -826,7 +826,7 @@ EOF >> /tmp/infobox_output 2>&1
         show_message "Creating Root Partition..."
         fdisk "$DEVICE" <<EOF
 n
-3
+
 
 
 w
@@ -836,7 +836,7 @@ EOF >> /tmp/infobox_output 2>&1
         show_message "Creating Root Partition..."
         fdisk "$DEVICE" <<EOF
 n
-2
+
 
 
 w
