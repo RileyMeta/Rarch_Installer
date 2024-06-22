@@ -907,76 +907,76 @@ EOF >> /tmp/infobox_output 2>&1
     systemd-nspawn -D /mnt --bind /sys --bind /proc --bind /dev -- systemctl enable NetworkManager >> /tmp/infobox_output 2>&1
     sleep 0.5
 
-    show_message "Running Chroot Steps..."
-    _run_chroot >> /tmp/infobox_output 2>&1
-    sleep 1
+    # show_message "Running Chroot Steps..."
+    # _run_chroot >> /tmp/infobox_output 2>&1
+    # sleep 1
 
     SUCCESSFUL_FINISH
 }
 
-_run_chroot() {
+# _run_chroot() {
 
-export NEW_HOST_NAME
-export SELECTED_LOCALE
-export ROOT_PW_CONFIRM
-export USERNAME
-export USER_PW_CONFIRM
-export DEVICE
-export SUDOER
-export SYMLINK
+# export NEW_HOST_NAME
+# export SELECTED_LOCALE
+# export ROOT_PW_CONFIRM
+# export USERNAME
+# export USER_PW_CONFIRM
+# export DEVICE
+# export SUDOER
+# export SYMLINK
 
-cat << 'EOF' > /mnt/temp_script.sh
-#!/bin/bash
+# cat << 'EOF' > /mnt/temp_script.sh
+# #!/bin/bash
 
-post_install_steps() {
-    echo "${NEW_HOST_NAME}" > /etc/hostname
-    echo "LANG=${SELECTED_LOCALE}" > /etc/locale.conf
-    echo root:$ROOT_PW_CONFIRM | chpasswd
-    useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
-    echo $USERNAME:$USER_PW_CONFIRM | chpasswd
-    systemctl enable gdm
-    if [[ AUR_WRAPPER = "yay" ]]; then
-        cd /tmp
-        git clone https://aur.archlinux.org/yay.git
-        chown -R $USERNAME yay/
-        cd yay/
-        su -c "makepkg" $USERNAME
-        pacman -U --no-confirm yay-*.pkg.tar.zst
-    elif [[ AUR_WRAPPER = "paru" ]]; then
-        cd /tmp
-        git clone https://aur.archlinux.org/paru.git
-        chown -R $USERNAME paru/
-        cd paru/
-        su -c "makepkg" $USERNAME
-        pacman -U --no-confirm paru-*.pkg.tar.zst
-    else
-        clear
-    fi
-    rm -rf /tmp/*
-    if [[ $SUDOER = true ]]; then
-        sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
-    fi
-    if [[ $DEVICE != "nvme0n1" ]]; then
-        mount "${DEVICE}1" /boot
-        grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-    else
-        mount "${DEVICE}p1" /boot
-        grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-    fi
-    grub-mkconfig -o /boot/grub/grub.cfg
-    if [[ ${SYMLINK} = true ]]; then
-        ln -sf /usr/bin/'${TEXT_EDITOR}' /usr/bin/vi
-    fi
-}
+# post_install_steps() {
+#     echo "${NEW_HOST_NAME}" > /etc/hostname
+#     echo "LANG=${SELECTED_LOCALE}" > /etc/locale.conf
+#     echo root:$ROOT_PW_CONFIRM | chpasswd
+#     useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
+#     echo $USERNAME:$USER_PW_CONFIRM | chpasswd
+#     systemctl enable gdm
+#     if [[ AUR_WRAPPER = "yay" ]]; then
+#         cd /tmp
+#         git clone https://aur.archlinux.org/yay.git
+#         chown -R $USERNAME yay/
+#         cd yay/
+#         su -c "makepkg" $USERNAME
+#         pacman -U --no-confirm yay-*.pkg.tar.zst
+#     elif [[ AUR_WRAPPER = "paru" ]]; then
+#         cd /tmp
+#         git clone https://aur.archlinux.org/paru.git
+#         chown -R $USERNAME paru/
+#         cd paru/
+#         su -c "makepkg" $USERNAME
+#         pacman -U --no-confirm paru-*.pkg.tar.zst
+#     else
+#         clear
+#     fi
+#     rm -rf /tmp/*
+#     if [[ $SUDOER = true ]]; then
+#         sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
+#     fi
+#     if [[ $DEVICE != "nvme0n1" ]]; then
+#         mount "${DEVICE}1" /boot
+#         grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+#     else
+#         mount "${DEVICE}p1" /boot
+#         grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+#     fi
+#     grub-mkconfig -o /boot/grub/grub.cfg
+#     if [[ ${SYMLINK} = true ]]; then
+#         ln -sf /usr/bin/'${TEXT_EDITOR}' /usr/bin/vi
+#     fi
+# }
 
-post_install_steps
-EOF
+# post_install_steps
+# EOF
 
-chmod +x /mnt/temp_script.sh
-arch-chroot /mnt /temp_script.sh
-rm /mnt/temp_script.sh
+# chmod +x /mnt/temp_script.sh
+# arch-chroot /mnt /temp_script.sh
+# rm /mnt/temp_script.sh
 
-}
+# }
 
 SUCCESSFUL_FINISH() {
     if dialog --clear \
