@@ -855,15 +855,15 @@ EOF >> /tmp/infobox_output 2>&1
     else
         ROOT_PARTITION="${DEVICE}"
     fi
-    if [[ $SWAP = true ]]; then
+    if [[ "$SWAP" = true ]]; then
         ROOT_PARTITION+="3"
     else
         ROOT_PARTITION+="2"
     fi
-    if [[ $FILE_SYSTEM = "ext4" ]]; then
-        mkfs.ext4 $ROOT_PARTITION >> /tmp/infobox_output 2>&1
-    elif [[ $FILE_SYSTEM = "btrfs" ]]; then
-        mkfs.btrfs $ROOT_PARTITION >> /tmp/infobox_output 2>&1
+    if [[ "$FILE_SYSTEM" = "ext4" ]]; then
+        mkfs.ext4 "$ROOT_PARTITION" >> /tmp/infobox_output 2>&1
+    elif [[ "$FILE_SYSTEM" = "btrfs" ]]; then
+        mkfs.btrfs "$ROOT_PARTITION" >> /tmp/infobox_output 2>&1
     fi
     sleep 2
 
