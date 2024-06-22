@@ -15,6 +15,9 @@ MAGENTA="\Z5"
 CYAN="\Z6"
 WHITE="\Z7"
 
+TERMINAL_RED="\e[31m"
+TERMINAL_END="\e[0m"
+
 BACKTITLE="Rarch Installer"
 
 # Default Values
@@ -28,6 +31,7 @@ DESKTOP="None (TTY Only)"
 account_created=false
 HOST_NAME=""
 SELECTED_LOCALE="en_US.UTF-8"
+DEFAULT_LOCALE=true
 prompt_argument=1
 ERROR=0
 ROOT_INCORRECT=1
@@ -36,18 +40,29 @@ trap 'aborted' INT
 
 aborted() {
     clear
-    echo "Your App has been Aborted."
-    echo "If this was due to a bug or issue, please report it to the the Github."
+    prompt="${TERMINAL_RED}Rarch Installer has been Aborted.${TERMINAL_END}"
+    prompt+="\nIf this was due to a bug or issue, please report it to the the Github."
+    prompt+="\n\nhttps://github.com/RileyMeta/Arch_Installer/issues/new"
+    prompt+="\n"
+    echo -e $prompt
     exit 0
+}
+
+check_dependency() {
+    if ! command -v "$1" &> /dev/null; then
+        pacman -Sy --noconfirm dialog
+    fi
 }
 
 init_test() {
     total_ram=$(free -m | awk '/^Mem:/{print $2}')
+    dialog_test=$(ls /usr/bin/dialog)
 
     if [ "$total_ram" -le 2048 ]; then
         _ram_fail
     else
-        ping -c 1 google.com && main || _ping_fail
+        ping -c 1 google.com || _ping_fail
+        check_dependency dialog
     fi
 }
 
@@ -67,7 +82,10 @@ _menu_checks() {
         7) prompt+="${RED}${BOLD}The script cannot conitnue, please select a Desktop.${ENDSTYLE}";;
         8) prompt+="${RED}${BOLD}The script cannot conitnue, please set a Hostname.${ENDSTYLE}";;
     esac
-    LOCALE_LABEL="Locale: ${GREEN}${SELECTED_LOCALE}${ENDSTYLE}"
+        LOCALE_LABEL="Locale: ${GREEN}${SELECTED_LOCALE}${ENDSTYLE}"
+    if [[ $DEFAULT_LOCALE = true ]]; then
+        LOCALE_LABEL+=" *default"
+    fi
     if [[ ${NEW_HOST_NAME} != "" ]]; then
         HOSTNAME_LABEL="Hostname: ${GREEN}${NEW_HOST_NAME}${ENDSTYLE}" 
     else
@@ -182,302 +200,52 @@ esac
 }
 
 locale_selection() {
-    while true; do
-    localeOptions=(
-    1 "af_ZA"
-    2 "sq_AL"
-    3 "ar_SA"
-    4 "eu_ES"
-    5 "be_BY"
-    6 "bs_BA"
-    7 "bg_BG"
-    8 "ca_ES"
-    9 "hr_HR"
-    10 "zh_CN"
-    11 "zh_TW"
-    12 "cs_CZ"
-    13 "da_DK"
-    14 "nl_NL"
-    15 "en"
-    16 "et_EE"
-    17 "fa_IR"
-    18 "fil_PH"
-    19 "fi_FI"
-    20 "fr_FR"
-    21 "fr_CA"
-    22 "ga"
-    23 "gl_ES"
-    24 "ka_GE"
-    25 "de_DE"
-    26 "el_GR"
-    27 "gu"
-    28 "he_IL"
-    29 "hi_IN"
-    30 "hu"
-    31 "is_IS"
-    32 "id_ID"
-    33 "it_IT"
-    34 "ja_JP"
-    35 "kn_IN"
-    36 "km_KH"
-    37 "ko_KR"
-    38 "lo_LA"
-    39 "lt_LT"
-    40 "lat"
-    41 "ml_IN"
-    42 "ms_MY"
-    43 "mi_NZ"
-    44 "mi_NZ"
-    45 "mn"
-    46 "no_NO"
-    47 "no_NO"
-    48 "nn_NO"
-    49 "pl"
-    50 "pt_PT"
-    51 "pt_BR"
-    52 "ro_RO"
-    53 "ru_RU"
-    54 "mi_NZ"
-    55 "sr_CS"
-    56 "sk_SK"
-    57 "sl_SI"
-    58 "so_SO"
-    59 "es_ES"
-    60 "sv_SE"
-    61 "tl"
-    62 "ta_IN"
-    63 "th_TH"
-    64 "mi_NZ"
-    65 "tr_TR"
-    66 "uk_UA"
-    67 "vi_VN"
-    68 "fr_CH"
-    69 "fr_BE"
-    70 "skip"
-)
-result=$(dialog --clear --title "Locale Selecttion" \
-    --backtitle "$BACKTITLE" \
-    --colors \
-    --cancel-label "BACK" \
-    --stdout \
-    --menu "\nPlease select your preferred console text editor" 0 0 12 "${localeOptions[@]}")
+    options=("af_ZA" "ar_SA" "be_BY" "bg_BG" "bs_BA" "ca_ES" "cs_CZ" "da_DK" "de_DE" "el_GR" "en_GU" "en_US" "es_ES" "et_EE" "eu_ES" "fa_IR" "fi_FI" "fil_P" "fr_BE" "fr_CA" "fr_CH" "fr_FR" "ga_IE" "gl_ES" "he_IL" "hi_IN" "hr_HR" "hu_HU" "id_ID" "is_IS" "it_IT" "ja_JP" "ka_GE" "km_KH" "kn_IN" "ko_KR" "lo_LA" "lt_LT" "mi_NZ" "mi_NZ" "mi_NZ" "mi_NZ" "ml_IN" "mn_MN" "ms_MY" "nl_NL" "nn_NO" "no_NO" "no_NO" "pl_PL" "pt_BR" "pt_PT" "pt_TL" "ro_RO" "ru_RU" "sk_SK" "sl_SI" "so_SO" "sq_AL" "sr_CS" "sv_SE" "ta_IN" "th_TH" "tr_TR" "uk_UA" "vi_VN" "zh_CN" "zh_TW")
 
-case $? in
-    0)  case $result in
-            1) SELECTED_LOCALE="af_ZA"
-                main 
-                break;;
-            2) SELECTED_LOCALE="sq_AL"
-                main 
-                break;;
-            3) SELECTED_LOCALE="ar_SA"
-                main 
-                break;;
-            4) SELECTED_LOCALE="eu_ES"
-                main 
-                break;;
-            5) SELECTED_LOCALE="be_BY"
-                main 
-                break;;
-            6) SELECTED_LOCALE="bs_BA"
-                main 
-                break;;
-            7) SELECTED_LOCALE="bg_BG"
-                main 
-                break;;
-            8) SELECTED_LOCALE="ca_ES"
-                main 
-                break;;
-            9) SELECTED_LOCALE="hr_HR"
-                main 
-                break;;
-            10) SELECTED_LOCALE="zh_CN"
-                main 
-                break;;
-            11) SELECTED_LOCALE="zh_TW"
-                main 
-                break;;
-            12) SELECTED_LOCALE="cs_CZ"
-                main 
-                break;;
-            13) SELECTED_LOCALE="da_DK"
-                main 
-                break;;
-            14) SELECTED_LOCALE="nl_NL"
-                main 
-                break;;
-            15) SELECTED_LOCALE="en"
-                main 
-                break;;
-            16) SELECTED_LOCALE="et_EE"
-                main 
-                break;;
-            17) SELECTED_LOCALE="fa_IR"
-                main 
-                break;;
-            18) SELECTED_LOCALE="fil_PH"
-                main 
-                break;;
-            19) SELECTED_LOCALE="fi_FI"
-                main 
-                break;;
-            20) SELECTED_LOCALE="fr_FR"
-                main 
-                break;;
-            21) SELECTED_LOCALE="fr_CA"
-                main 
-                break;;
-            22) SELECTED_LOCALE="ga"
-                main 
-                break;;
-            23) SELECTED_LOCALE="gl_ES"
-                main 
-                break;;
-            24) SELECTED_LOCALE="ka_GE"
-                main 
-                break;;
-            25) SELECTED_LOCALE="de_DE"
-                main 
-                break;;
-            26) SELECTED_LOCALE="el_GR"
-                main 
-                break;;
-            27) SELECTED_LOCALE="gu"
-                main 
-                break;;
-            28) SELECTED_LOCALE="he_IL"
-                main 
-                break;;
-            29) SELECTED_LOCALE="hi_IN"
-                main 
-                break;;
-            30) SELECTED_LOCALE="hu"
-                main 
-                break;;
-            31) SELECTED_LOCALE="is_IS"
-                main 
-                break;;
-            32) SELECTED_LOCALE="id_ID"
-                main 
-                break;;
-            33) SELECTED_LOCALE="it_IT"
-                main 
-                break;;
-            34) SELECTED_LOCALE="ja_JP"
-                main 
-                break;;
-            35) SELECTED_LOCALE="kn_IN"
-                main 
-                break;;
-            36) SELECTED_LOCALE="km_KH"
-                main 
-                break;;
-            37) SELECTED_LOCALE="ko_KR"
-                main 
-                break;;
-            38) SELECTED_LOCALE="lo_LA"
-                main 
-                break;;
-            39) SELECTED_LOCALE="lt_LT"
-                main 
-                break;;
-            40) SELECTED_LOCALE="lat"
-                main 
-                break;;
-            41) SELECTED_LOCALE="ml_IN"
-                main 
-                break;;
-            42) SELECTED_LOCALE="ms_MY"
-                main 
-                break;;
-            43) SELECTED_LOCALE="mi_NZ"
-                main 
-                break;;
-            44) SELECTED_LOCALE="mi_NZ"
-                main 
-                break;;
-            45) SELECTED_LOCALE="mn"
-                main 
-                break;;
-            46) SELECTED_LOCALE="no_NO"
-                main 
-                break;;
-            47) SELECTED_LOCALE="no_NO"
-                main 
-                break;;
-            48) SELECTED_LOCALE="nn_NO"
-                main 
-                break;;
-            49) SELECTED_LOCALE="pl"
-                main 
-                break;;
-            50) SELECTED_LOCALE="pt_PT"
-                main 
-                break;;
-            51) SELECTED_LOCALE="pt_BR"
-                main 
-                break;;
-            52) SELECTED_LOCALE="ro_RO"
-                main 
-                break;;
-            53) SELECTED_LOCALE="ru_RU"
-                main 
-                break;;
-            54) SELECTED_LOCALE="mi_NZ"
-                main 
-                break;;
-            55) SELECTED_LOCALE="sr_CS"
-                main 
-                break;;
-            56) SELECTED_LOCALE="sk_SK"
-                main 
-                break;;
-            57) SELECTED_LOCALE="sl_SI"
-                main 
-                break;;
-            58) SELECTED_LOCALE="so_SO"
-                main 
-                break;;
-            59) SELECTED_LOCALE="es_ES"
-                main 
-                break;;
-            60) SELECTED_LOCALE="sv_SE"
-                main 
-                break;;
-            61) SELECTED_LOCALE="tl"
-                main 
-                break;;
-            62) SELECTED_LOCALE="ta_IN"
-                main 
-                break;;
-            63) SELECTED_LOCALE="th_TH"
-                main 
-                break;;
-            64) SELECTED_LOCALE="mi_NZ"
-                main 
-                break;;
-            65) SELECTED_LOCALE="tr_TR"
-                main 
-                break;;
-            66) SELECTED_LOCALE="uk_UA"
-                main 
-                break;;
-            67) SELECTED_LOCALE="vi_VN"
-                main 
-                break;;
-            68) SELECTED_LOCALE="fr_CH"
-                main 
-                break;;
-            69) SELECTED_LOCALE="fr_BE"
-                main 
-                break;;
-            70) main 
-                break;;
-        esac
-        ;;
-    1) main;;
-esac
+    menu_options=()
+    i=1
+    for option in "${options[@]}"; do
+        menu_options+=("$i" "$option")
+        ((i++))
     done
+
+    exec 3>&1
+    if [ $DEFAULT_LOCALE = true ]; then
+        locale_message="Default: ${CYAN}${SELECTED_LOCALE}${ENDSTYLE}"
+    else
+        locale_message="Current Selection: ${CYAN}${SELECTED_LOCALE}${ENDSTYLE}"
+    fi
+    locale_message+="\nPlease select your Locale"
+    locale_message+="\n\nor press 'Skip' to confirm the default"
+    if [ $DEFAULT_LOCALE = true ]; then
+        LOCALE_CANCEL_LABEL="SKIP"
+    else
+        LOCALE_CANCEL_LABEL="BACK"
+    fi
+    selection=$(dialog --clear \
+                       --title "Locale Selection" \
+                       --colors \
+                       --ok-label "SELECT" \
+                       --cancel-label "${LOCALE_CANCEL_LABEL}" \
+                       --menu "${locale_message}" 15 40 10 \
+                       "${menu_options[@]}" \
+                       2>&1 1>&3)
+    exec 3>&-
+
+    if [ -n "$selection" ]; then
+        chosen_option="${options[$((selection - 1))]}"
+        SELECTED_LOCALE="${chosen_option}.UTF-8"
+        DEFAULT_LOCALE=false
+        main
+    else
+        if [ $DEFAULT_LOCALE = true ];then 
+            SELECTED_LOCALE="en_US.UTF-8"
+            DEFAULT_LOCALE=false
+        else
+            SELECTED_LOCALE="${SELECTED_LOCALE}"
+        fi
+        main
+    fi
 }
 
 _install_check() {
@@ -1061,10 +829,10 @@ EOF >> /tmp/infobox_output 2>&1
     show_message "Creating Boot Parition..."
     if [[ "$DEVICE" == *"nvme"* ]]; then
         BOOT_DEVICE="${DEVICE}p1"
-        mkfs.fat -F 32 "${BOOT_DEVICE}" >> /tmp/infobox_output 2>&1
+        mkfs.fat -F 32 $BOOT_DEVICE >> /tmp/infobox_output 2>&1
     else
         BOOT_DEVICE="${DEVICE}1"
-        mkfs.fat -F 32 "${BOOT_DEVICE}" >> /tmp/infobox_output 2>&1
+        mkfs.fat -F 32 $BOOT_DEVICE >> /tmp/infobox_output 2>&1
     fi
     sleep 2
 
@@ -1072,50 +840,39 @@ EOF >> /tmp/infobox_output 2>&1
         show_message "Creating the Swap Partition..."
         if [[ "$DEVICE" == *"nvme"* ]]; then
             SWAP_DEVICE="${DEVICE}p2"
-            mkswap ${SWAP_DEVICE} >> /tmp/infobox_output 2>&1
+            mkswap $SWAP_DEVICE >> /tmp/infobox_output 2>&1
         else
             SWAP_DEVICE="${DEVICE}2"
-            mkswap ${SWAP_DEVICE} >> /tmp/infobox_output 2>&1
+            mkswap $SWAP_DEVICE >> /tmp/infobox_output 2>&1
         fi
-        sleep 2
-    fi
-
-    if [[ $SWAP = true ]]; then
-        show_message "Enabling Swap..."
-        if [[ "$DEVICE" == *"nvme"* ]]; then
-            SWAP_DEVICE="${DEVICE}p2"
-            swapon ${SWAP_DEVICE} >> /tmp/infobox_output 2>&1
-        else
-            SWAP_DEVICE="${DEVICE}2"
-            swapon ${SWAP_DEVICE} >> /tmp/infobox_output 2>&1
-        fi
+        swapon $SWAP_DEVICE >> /tmp/infobox_output 2>&1
         sleep 2
     fi
 
     show_message "Creating Filesystem..."
     if [[ "$DEVICE" == *"nvme"* ]]; then
-        FORMAT_DEVICE="${DEVICE}p"
+        ROOT_PARTITION="${DEVICE}p"
     else
-        FORMAT_DEVICE="${DEVICE}"
+        ROOT_PARTITION="${DEVICE}"
     fi
     if [[ $SWAP = true ]]; then
-        FORMAT_DEVICE+="3"
+        ROOT_PARTITION+="3"
     else
-        FORMAT_DEVICE+="2"
+        ROOT_PARTITION+="2"
     fi
     if [[ $FILE_SYSTEM = "ext4" ]]; then
-        mkfs.ext4 "${FORMAT_DEVICE}" >> /tmp/infobox_output 2>&1
+        mkfs.ext4 $ROOT_PARTITION >> /tmp/infobox_output 2>&1
     elif [[ $FILE_SYSTEM = "btrfs" ]]; then
-        mkfs.btrfs "${FORMAT_DEVICE}" >> /tmp/infobox_output 2>&1
+        mkfs.btrfs $ROOT_PARTITION >> /tmp/infobox_output 2>&1
     fi
     sleep 2
 
     show_message "Mounting the Root Parition..."
-    mount --mkdir "${FORMAT_DEVICE}" /mnt >> /tmp/infobox_output 2>&1
+    mount --mkdir $ROOT_PARTITION /mnt >> /tmp/infobox_output 2>&1
     sleep 1
 
     show_message "Mounting the Boot Partition..."
-    mount --mkdir "${BOOT_DEVICE}" /mnt/boot  >> /tmp/infobox_output 2>&1
+    mount --mkdir $BOOT_DEVICE /mnt/boot  >> /tmp/infobox_output 2>&1
     sleep 1
 
     show_message "Installing Base System..."
