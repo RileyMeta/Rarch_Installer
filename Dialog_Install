@@ -776,15 +776,18 @@ show_message() {
 SYSTEM_INSTALL() {
 
     show_message "Configuring Pacman..."
-    sed -i 's/#ParallelDownloads = 5/ParallelDownloads = 10/g' /etc/pacman.conf >> /tmp/infobox_output 2>&1
+    sed -i 's/#ParallelDownloads = 5/ParallelDownloads = 10/g' /etc/pacman.conf 
+    echo "Enabling: Parallel Downloads" >> /tmp/infobox_output 2>&1
     sleep 1
 
     show_message "Configuring Pacman..."
-    sed -i 's/#Color/Color/g' /etc/pacman.conf >> /tmp/infobox_output 2>&1
+    sed -i 's/#Color/Color/g' /etc/pacman.conf 
+    echo "Enabling: Colorful Output" >> /tmp/infobox_output 2>&1
     sleep 1
 
     show_message "Configuring Pacman..."
-    sed -i 's/#VerbosePkgLists/VerbosePkgLists/g' /etc/pacman.conf >> /tmp/infobox_output 2>&1
+    sed -i 's/#VerbosePkgLists/VerbosePkgLists/g' /etc/pacman.conf 
+    echo "Enabling: Verbose Package Lists" >> /tmp/infobox_output 2>&1
     sleep 1
     
     show_message "Disk Partitioning..."
@@ -941,14 +944,14 @@ post_install_steps() {
         chown -R $USERNAME yay/
         cd yay/
         su -c "makepkg" $USERNAME
-        pacman -U --noconfirm yay-*.pkg.tar.zst
+        pacman -U --no-confirm yay-*.pkg.tar.zst
     elif [[ AUR_WRAPPER = "paru" ]]; then
         cd /tmp
         git clone https://aur.archlinux.org/paru.git
         chown -R $USERNAME paru/
         cd paru/
         su -c "makepkg" $USERNAME
-        pacman -U --noconfirm paru-*.pkg.tar.zst
+        pacman -U --no-confirm paru-*.pkg.tar.zst
     else
         clear
     fi
