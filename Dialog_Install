@@ -846,10 +846,10 @@ EOF >> /tmp/infobox_output 2>&1
     show_message "Creating Boot Parition..."
     if [[ "$DEVICE" == *"nvme"* ]]; then
         BOOT_DEVICE="${DEVICE}p1"
-        mkfs.fat -F 32 $BOOT_DEVICE >> /tmp/infobox_output 2>&1
+        mkfs.fat -F 32 "$BOOT_DEVICE" >> /tmp/infobox_output 2>&1
     else
         BOOT_DEVICE="${DEVICE}1"
-        mkfs.fat -F 32 $BOOT_DEVICE >> /tmp/infobox_output 2>&1
+        mkfs.fat -F 32 "$BOOT_DEVICE" >> /tmp/infobox_output 2>&1
     fi
     sleep 2
 
@@ -857,12 +857,12 @@ EOF >> /tmp/infobox_output 2>&1
         show_message "Creating the Swap Partition..."
         if [[ "$DEVICE" == *"nvme"* ]]; then
             SWAP_DEVICE="${DEVICE}p2"
-            mkswap $SWAP_DEVICE >> /tmp/infobox_output 2>&1
+            mkswap "$SWAP_DEVICE" >> /tmp/infobox_output 2>&1
         else
             SWAP_DEVICE="${DEVICE}2"
-            mkswap $SWAP_DEVICE >> /tmp/infobox_output 2>&1
+            mkswap "$SWAP_DEVICE" >> /tmp/infobox_output 2>&1
         fi
-        swapon $SWAP_DEVICE >> /tmp/infobox_output 2>&1
+        swapon "$SWAP_DEVICE" >> /tmp/infobox_output 2>&1
         sleep 2
     fi
 
