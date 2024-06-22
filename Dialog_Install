@@ -941,14 +941,14 @@ post_install_steps() {
         chown -R $USERNAME yay/
         cd yay/
         su -c "makepkg" $USERNAME
-        pacman -U --no-confirm yay-*.pkg.tar.zst
+        pacman -U --noconfirm yay-*.pkg.tar.zst
     elif [[ AUR_WRAPPER = "paru" ]]; then
         cd /tmp
         git clone https://aur.archlinux.org/paru.git
         chown -R $USERNAME paru/
         cd paru/
         su -c "makepkg" $USERNAME
-        pacman -U --no-confirm paru-*.pkg.tar.zst
+        pacman -U --noconfirm paru-*.pkg.tar.zst
     else
         clear
     fi
