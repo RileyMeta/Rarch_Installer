@@ -491,7 +491,9 @@ user_password_check() {
     --yesno "Would you like ${BLUE}${NEW_USERNAME}${ENDSTYLE} to have a password?" 0 0; 
     then
         user_password
+        user_pass=true
     else
+        user_pass=false
         account_created=true
         main
     fi
@@ -768,231 +770,317 @@ esac
     done
 }
 
-show_message() {
-    local message=$1
-    dialog --title "System Setup" --infobox "$message" 10 50
+SYSTEM_INSTALL() {
+    pacman_step=1 && _run_pacman_config
+    pacman_step=2 && _run_pacman_config
+    pacman_step=3 && _run_pacman_config
+    partition_step=1 && _run_drive_partitioning
+    if [[ $SWAP = true ]]; then
+        partition_step=2 && _run_drive_partitioning
+        partition_step=3 && _run_drive_partitioning
+    else
+        partition_step=4 && _run_drive_partitioning
+    fi
+    format_step=1 && _run_mkfs
+    if [[ $SWAP = true ]]; then
+        format_step=2 && _run_mkfs
+    fi
+    format_step=3 && _run_mkfs
+    mounting_step=1 && _run_mount_fs
+    if [[ $SWAP = true ]]; then
+        mounting_step=2 && _run_mount_fs
+    fi
+    mounting_step=3 && _run_mount_fs
+    _run_pacstrap
+    systemd_step=1 && _run_systemd
+    systemd_step=2 && _run_systemd
+    _set_hostname
+    _set_locale
+    case $AUR_WRAPPER in
+        'yay') chroot_steps=1 && _install_yay;;
+        'paru') chroot_steps=2 && _install_paru;;
+        'none') : ;;
+    esac
+    if [[ $SYMLINK = true ]]; then
+        _run_symlink
+    fi
+    _run_chroot
+    clean_up
+    SUCCESSFUL_FINISH
 }
 
-SYSTEM_INSTALL() {
+_run_pacman_config() {
+    case $pacman_step in
+        1) prompt="\nEnabling Parallel Downloads";;
+        2) prompt="\nEnabling Colorful Output";;
+        3) prompt="\nEnabling Verbose Package lists";;
+    esac
+    dialog --title "Configuring Pacman..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "$prompt" 8 50
+    case $pacman_step in
+        1) sed -i 's/#ParallelDownloads = 5/ParallelDownloads = 10/g' /etc/pacman.conf ;;
+        2) sed -i 's/#Color/Color/g' /etc/pacman.conf ;;
+        3) sed -i 's/#VerbosePkgLists/VerbosePkgLists/g' /etc/pacman.conf ;;
+    esac
+    sleep 1
+}
 
-    show_message "Configuring Pacman..."
-    sed -i 's/#ParallelDownloads = 5/ParallelDownloads = 10/g' /etc/pacman.conf 
-    echo "Enabling: Parallel Downloads" >> /tmp/infobox_output 2>&1
-    sleep 0.25
-
-    show_message "Configuring Pacman..."
-    sed -i 's/#Color/Color/g' /etc/pacman.conf 
-    echo "Enabling: Colorful Output" >> /tmp/infobox_output 2>&1
-    sleep 0.25
-
-    show_message "Configuring Pacman..."
-    sed -i 's/#VerbosePkgLists/VerbosePkgLists/g' /etc/pacman.conf 
-    echo "Enabling: Verbose Package Lists" >> /tmp/infobox_output 2>&1
-    sleep 0.25
-    
-    show_message "Disk Partitioning..."
-        fdisk "$DEVICE" <<EOF
+_run_drive_partitioning() {
+    case $partition_step in
+        1) prompt="\nCreating Boot Partition";;
+        2) prompt="\nCreating SWAP Partition";;
+        3|4) prompt="\nCreating Root Partition";;
+    esac
+    dialog --title "Partitioning ${DEVICE}..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "$prompt" 8 50
+    case $pacman_step in
+        1)  fdisk $DEVICE <<EOF
 g
 w
-EOF  >> /tmp/infobox_output 2>&1
+EOF
 
-    show_message "Creating Boot Partition..."
-    fdisk "$DEVICE" <<EOF
+    fdisk $DEVICE <<EOF
 n
 1
 
-+512MiB
++128MiB
 t
 1
 w
-EOF >> /tmp/infobox_output 2>&1
-
-    if [[ $SWAP = true ]]; then
-        show_message "Creating Swap Partition..."
-        fdisk "$DEVICE" <<EOF
+EOF ;;
+        2)     fdisk $DEVICE <<EOF
 n
-
+2
 
 +2GiB
 t
 2
 swap
 w
-EOF >> /tmp/infobox_output 2>&1
-    sleep 2
-    fi
-
-    if [[ $SWAP = true ]]; then
-        show_message "Creating Root Partition..."
-        fdisk "$DEVICE" <<EOF
+EOF ;;
+        3) fdisk $DEVICE <<EOF
 n
-
+3
 
 
 w
-EOF >> /tmp/infobox_output 2>&1
-    sleep 2
-    else
-        show_message "Creating Root Partition..."
-        fdisk "$DEVICE" <<EOF
+EOF ;;
+        4) fdisk $DEVICE <<EOF
 n
-
+2
 
 
 w
-EOF >> /tmp/infobox_output 2>&1
-    fi
+EOF  ;;
+    esac
+    sleep 1
+}
 
-    show_message "Creating Boot Parition..."
-    if [[ "$DEVICE" == *"nvme"* ]]; then
+_run_mkfs() {
+    case $format_step in
+        1) prompt="\nFormatting Boot Partition";;
+        2) prompt="\nFormatting SWAP Partition";;
+        3) prompt="\nFormatting Root Partition";;
+    esac
+    if [[ "$DEVICE" == *"nvme"* && $SWAP == true ]]; then
         BOOT_DEVICE="${DEVICE}p1"
-        mkfs.fat -F 32 "$BOOT_DEVICE" >> /tmp/infobox_output 2>&1
+        SWAP_DEVICE="${DEVICE}p2"
+        ROOT_DEVICE="${DEVICE}p3"
+    elif [[ "$DEVICE" == *"nvme"* && $SWAP != true ]]; then
+        BOOT_DEVICE="${DEVICE}p1"
+        ROOT_DEVICE="${DEVICE}p2"
+    elif [[ "$DEVICE" != *"nvme"* && $SWAP = true]]; then
+        BOOT_DEVICE="${DEVICE}1"
+        SWAP_DEVICE="${DEVICE}2"
+        ROOT_DEVICE="${DEVICE}3"
     else
         BOOT_DEVICE="${DEVICE}1"
-        mkfs.fat -F 32 "$BOOT_DEVICE" >> /tmp/infobox_output 2>&1
+        ROOT_DEVICE="${DEVICE}2"
     fi
-    sleep 2
-
-    if [[ $SWAP = true ]]; then
-        show_message "Creating the Swap Partition..."
-        if [[ "$DEVICE" == *"nvme"* ]]; then
-            SWAP_DEVICE="${DEVICE}p2"
-            mkswap "$SWAP_DEVICE" >> /tmp/infobox_output 2>&1
-        else
-            SWAP_DEVICE="${DEVICE}2"
-            mkswap "$SWAP_DEVICE" >> /tmp/infobox_output 2>&1
-        fi
-        swapon "$SWAP_DEVICE" >> /tmp/infobox_output 2>&1
-        sleep 2
-    fi
-
-    show_message "Creating Filesystem..."
-    if [[ "$DEVICE" == *"nvme"* ]]; then
-        ROOT_PARTITION="${DEVICE}p"
-    else
-        ROOT_PARTITION="${DEVICE}"
-    fi
-    if [[ "$SWAP" = true ]]; then
-        ROOT_PARTITION+="3"
-    else
-        ROOT_PARTITION+="2"
-    fi
-    if [[ "$FILE_SYSTEM" = "ext4" ]]; then
-        mkfs.ext4 "$ROOT_PARTITION" >> /tmp/infobox_output 2>&1
-    elif [[ "$FILE_SYSTEM" = "btrfs" ]]; then
-        mkfs.btrfs "$ROOT_PARTITION" >> /tmp/infobox_output 2>&1
-    fi
-    sleep 2
-
-    show_message "Mounting the Root Parition..."
-    mount --mkdir "$ROOT_PARTITION" /mnt >> /tmp/infobox_output 2>&1
+    format_device=${DEVICE#'/dev/'}
+    dialog --title "Formatting ${format_device}..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "$prompt" 8 50
+    case $format_step in
+        1) mkfs.fat -F 32 $BOOT_DEVICE ;;
+        2) mkswap $SWAP_DEVICE ;;
+        3) mkfs."$FILE_SYSTEM" $ROOT_DEVICE ;;
+    esac
     sleep 1
+}
 
-    show_message "Mounting the Boot Partition..."
-    mount --mkdir "$BOOT_DEVICE" /mnt/boot  >> /tmp/infobox_output 2>&1
+_run_mount_fs() {
+    case $mounting_step in
+        1) prompt="\nMounting the Boot Partition";;
+        2) prompt="\nMounting the SWAP Partition";;
+        3) prompt="\nMounting the Root Partition";;
+    esac
+    format_device=${DEVICE#'/dev/'}
+    dialog --title "Mounting System Partitions..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "$prompt" 8 50
+    case $mounting_step in
+        1) mount --mkdir $BOOT_DEVICE /mnt/boot ;;
+        2) swapon $SWAP_DEVICE ;;
+        3) mount $ROOT_DEVICE /mnt ;;
+    esac
     sleep 1
+}
 
-    show_message "Installing Base System..."
-    packages="sudo git curl wget efibootmgr grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils ${TEXT_EDITOR} ${DISPLAY_MANAGER} "
-    if [[ ${DESKTOP} = "Gnome" ]]; then
-        packages+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome "
-    elif [[ ${DESKTOP} =  "Kde Plasma" ]]; then
-        packages+="plasma plasma-meta xdg-desktop-portal-kde "
-    elif [[ ${DESKTOP} =  "XFCE" ]]; then
-        packages+="xfce4 xfce4-goodies "
-    fi
-    if [[ ${AUR_WRAPPER} = "yay" ]]; then
+_run_pacstrap() {
+    packages="sudo git curl wget efibootmgr grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager ${TEXT_EDITOR} ${DISPLAY_MANAGER} "
+    case $DESKTOP in
+        'Gnome') packages+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome " ;;
+        'Kde Plasma') packages+="plasma plasma-meta xdg-desktop-portal-kde " ;;
+        'XFCE') packages+="xfce4 xfce4-goodies " ;;
+    esac
+    if [[ "$AUR_WRAPPER" = "yay" ]]; then
         packages+="go "
     fi
-    if [[ ${FILE_SYSTEM} = 'ext4' ]]; then
-        packages+="e2fsprogs "
-    else
-        packages+="btrfs-progs "
-    fi
-    pacstrap -K /mnt base linux linux-firmware linux-headers ${packages} >> /tmp/infobox_output 2>&1
-    sleep 2
-    
-    show_message "Generating FStab..."
-    genfstab -U /mnt >> /mnt/etc/fstab >> /tmp/infobox_output 2>&1
+    case $FILE_SYSTEM in
+        "ext4") packages+="e2fsprogs " ;;
+        "btrfs") packages+="btrfs-progs " ;;
+    esac
+    dialog --title "Installing Base System..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "Currently installing: ${packages}" 8 50
+    pacstrap -K /mnt base linux linux-firmware linux-headers "$packages"
     sleep 1
+}
 
-    show_message "Enabling SystemD Services..."
-    systemd-nspawn -D /mnt --bind /sys --bind /proc --bind /dev -- systemctl enable ${DISPLAY_MANAGER} >> /tmp/infobox_output 2>&1
-    sleep 0.5
-
-    show_message "Enabling SystemD Services..."
-    systemd-nspawn -D /mnt --bind /sys --bind /proc --bind /dev -- systemctl enable NetworkManager >> /tmp/infobox_output 2>&1
-    sleep 0.5
-
-    show_message "Running Chroot Steps..."
-    _run_chroot >> /tmp/infobox_output 2>&1
+_run_genfstab() {
+    dialog --title "Generating FSTAB..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "\nCurrently populating /etc/FSTAB with relevant Device Data" 8 50
+    genfstab -U /mnt >> /mnt/etc/fstab
     sleep 1
+}
 
-    SUCCESSFUL_FINISH
+_run_systemd() {
+    case $systemd_step in
+        1) prompt="\nEnabling $DISPLAY_MANAGER";;
+        2) prompt="\nEnabling Network Manager";;
+    esac
+    dialog --title "Enabling SystemD Services..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "$prompt" 8 50
+    case $systemd_step in
+        1) systemd-nspawn -D /mnt --bind /sys --bind /proc --bind /dev -- systemctl enable $DISPLAY_MANAGER ;;
+        2) systemd-nspawn -D /mnt --bind /sys --bind /proc --bind /dev -- systemctl enable NetworkManager ;;
+    esac
+    sleep 1
+}
+
+_set_hostname() {
+    echo $NEW_HOST_NAME > /mnt/etc/hostname
+}
+
+_set_locale() {
+    echo $SELECTED_LOCALE > /mnt/etc/locale.conf
+}
+
+_install_yay() {
+export USERNAME
+    cat << 'EOF' > /mnt/install_yay.sh
+#!/bin/bash
+_install_yay() {
+    cd /tmp
+    git clone https://aur.archlinux.org/yay.git
+    chown -R $USERNAME yay/
+    cd yay/
+    su -c "makepkg" $USERNAME
+    pacman -U --noconfirm yay-*.pkg.tar.zst
+}
+_install_yay
+EOF
+    chmod +x /mnt/install_yay.sh
+    arch-chroot /mnt /install_yay.sh
+    rm -rf /mnt/install_yay.sh
+}
+
+_install_paru() {
+export USERNAME
+    cat << 'EOF' > /mnt/install_paru.sh
+#!/bin/bash
+install_paru() {
+    cd /tmp
+    git clone https://aur.archlinux.org/paru.git
+    chown -R $USERNAME paru/
+    cd paru/
+    su -c "makepkg" $USERNAME
+    pacman -U --noconfirm paru-*.pkg.tar.zst
+}
+install_paru
+EOF
+    chmod +x /mnt/install_paru.sh
+    arch-chroot /mnt /install_paru.sh
+    rm -rf /mnt/install_paru.sh
+}
+
+_run_symlink() {
+    ln -sf /mnt/usr/bin/$TEXT_EDITOR /mnt/usr/bin/vi
 }
 
 _run_chroot() {
 
-export NEW_HOST_NAME
-export SELECTED_LOCALE
 export ROOT_PW_CONFIRM
+export account_created
 export USERNAME
 export USER_PW_CONFIRM
-export DEVICE
+export user_pass
 export SUDOER
-export SYMLINK
 
-cat << 'EOF' > /mnt/temp_script.sh
+    cat << 'EOF' > /mnt/chroot_install.sh
 #!/bin/bash
 
-post_install_steps() {
-    echo "${NEW_HOST_NAME}" > /etc/hostname
-    echo "LANG=${SELECTED_LOCALE}" > /etc/locale.conf
-    echo root:$ROOT_PW_CONFIRM | chpasswd
-    useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
-    echo $USERNAME:$USER_PW_CONFIRM | chpasswd
-    systemctl enable gdm
-    if [[ AUR_WRAPPER = "yay" ]]; then
-        cd /tmp
-        git clone https://aur.archlinux.org/yay.git
-        chown -R $USERNAME yay/
-        cd yay/
-        su -c "makepkg" $USERNAME
-        pacman -U --no-confirm yay-*.pkg.tar.zst
-    elif [[ AUR_WRAPPER = "paru" ]]; then
-        cd /tmp
-        git clone https://aur.archlinux.org/paru.git
-        chown -R $USERNAME paru/
-        cd paru/
-        su -c "makepkg" $USERNAME
-        pacman -U --no-confirm paru-*.pkg.tar.zst
-    else
-        clear
+chroot_install_steps() {
+    _set_root_passwd
+    if [[ $account_created = true ]]; then
+        _create_user
     fi
-    rm -rf /tmp/*
+    if [[ $user_pass = true ]]; then
+        _set_user_passwd
+    fi
     if [[ $SUDOER = true ]]; then
-        sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
+        _run_sudoer
     fi
-    if [[ $DEVICE != "nvme0n1" ]]; then
-        mount "${DEVICE}1" /boot
-        grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-    else
-        mount "${DEVICE}p1" /boot
-        grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-    fi
-    grub-mkconfig -o /boot/grub/grub.cfg
-    if [[ ${SYMLINK} = true ]]; then
-        ln -sf /usr/bin/'${TEXT_EDITOR}' /usr/bin/vi
-    fi
+    _install_grub
 }
 
-post_install_steps
+_set_root_passwd() {
+    echo root:$ROOT_PW_CONFIRM | chpasswd
+}
+
+_create_user() {
+    useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
+}
+
+_set_user_passwd() {
+    echo $USERNAME:$USER_PW_CONFIRM | chpasswd
+}
+
+_run_sudoer() {
+    sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
+}
+
+_install_grub() {
+    mount $BOOT_DEVICE /boot
+    grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+    grub-mkconfig -o /boot/grub/grub.cfg
+}
 EOF
+    chmod +x /mnt/chroot_install.sh
+    arch-chroot /mnt /chroot_install.sh
+}
 
-chmod +x /mnt/temp_script.sh
-arch-chroot /mnt /temp_script.sh
-rm /mnt/temp_script.sh
-
+clean_up() {
+    case $AUR_WRAPPER in
+        'yay') rm -rf /mnt/tmp/* && rm -rf /mnt/install_yay.sh ;;
+        'paru') rm -rf /mnt/tmp/* && rm -rf /mnt/install_paru.sh ;;
+        'none') rm -rf /mnt/tmp/* ;;
+    esac 
 }
 
 SUCCESSFUL_FINISH() {
