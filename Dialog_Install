@@ -1040,6 +1040,7 @@ _install_grub() {
     grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
     grub-mkconfig -o /boot/grub/grub.cfg
 }
+chroot_install_steps
 EOF
     chmod +x /mnt/chroot_install.sh
     arch-chroot /mnt /chroot_install.sh
