@@ -50,7 +50,7 @@ aborted() {
 
 check_dependency() {
     if ! command -v "$1" &> /dev/null; then
-        pacman -Sy --noconfirm dialog
+        sudo pacman -Sy --noconfirm dialog
     fi
 }
 
