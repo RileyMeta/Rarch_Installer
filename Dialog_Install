@@ -81,6 +81,7 @@ _menu_checks() {
         6) prompt+="${RED}${BOLD}The script cannot conitnue, please set a root password.${ENDSTYLE}";;
         7) prompt+="${RED}${BOLD}The script cannot conitnue, please select a Desktop.${ENDSTYLE}";;
         8) prompt+="${RED}${BOLD}The script cannot conitnue, please set a Hostname.${ENDSTYLE}";;
+        99) prompt+="${GREEN}${BOLD}Installation Completed Successfully!${ENDSTYLE}"
     esac
         LOCALE_LABEL="Locale: ${GREEN}${SELECTED_LOCALE}${ENDSTYLE}"
     if [[ $DEFAULT_LOCALE = true ]]; then
@@ -830,83 +831,15 @@ _run_drive_partitioning() {
     case $partition_step in
         1) prompt="\nCreating Boot Partition";;
         2) prompt="\nCreating SWAP Partition";;
-        3|4) prompt="\nCreating Root Partition";;
+        3) prompt="\nCreating Root Partition";;
     esac
     dialog --title "Partitioning ${DEVICE}..." --backtitle "${BACKTITLE}" \
     --colors \
     --infobox "$prompt" 8 50
     case $pacman_step in
-        1)  fdisk $DEVICE <<EOF
-g
-w
-EOF
-
-    fdisk $DEVICE <<EOF
-n
-1
-
-+128MiB
-t
-1
-w
-EOF ;;
-        2)     fdisk $DEVICE <<EOF
-n
-2
-
-+2GiB
-t
-2
-swap
-w
-EOF ;;
-        3) fdisk $DEVICE <<EOF
-n
-3
-
-
-w
-EOF ;;
-        4) fdisk $DEVICE <<EOF
-n
-2
-
-
-w
-EOF  ;;
-    esac
-    sleep 1
-}
-
-_run_mkfs() {
-    case $format_step in
-        1) prompt="\nFormatting Boot Partition";;
-        2) prompt="\nFormatting SWAP Partition";;
-        3) prompt="\nFormatting Root Partition";;
-    esac
-    if [[ "$DEVICE" == *"nvme"* && $SWAP == true ]]; then
-        BOOT_DEVICE="${DEVICE}p1"
-        SWAP_DEVICE="${DEVICE}p2"
-        ROOT_DEVICE="${DEVICE}p3"
-    elif [[ "$DEVICE" == *"nvme"* && $SWAP != true ]]; then
-        BOOT_DEVICE="${DEVICE}p1"
-        ROOT_DEVICE="${DEVICE}p2"
-    elif [[ "$DEVICE" != *"nvme"* && $SWAP = true]]; then
-        BOOT_DEVICE="${DEVICE}1"
-        SWAP_DEVICE="${DEVICE}2"
-        ROOT_DEVICE="${DEVICE}3"
-    else
-        BOOT_DEVICE="${DEVICE}1"
-        ROOT_DEVICE="${DEVICE}2"
-    fi
-    format_device=${DEVICE#'/dev/'}
-    dialog --title "Formatting ${format_device}..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "$prompt" 8 50
-    case $format_step in
-        1) mkfs.fat -F 32 $BOOT_DEVICE ;;
-        2) mkswap $SWAP_DEVICE ;;
-        3) mkfs."$FILE_SYSTEM" $ROOT_DEVICE ;;
+        1) echo "g\nn\n\n\n+128MiB\nt\n1\nw" | fdisk $DEVICE ;;
+        2) echo "n\n\n\n+2GiB\nt\n2\nswap\nw" | fdisk $DEVICE ;;
+        3) echo "n\n\n\n\nw" | fdisk $DEVICE ;;
     esac
     sleep 1
 }
@@ -925,6 +858,43 @@ _run_mount_fs() {
         1) mount --mkdir $BOOT_DEVICE /mnt/boot ;;
         2) swapon $SWAP_DEVICE ;;
         3) mount $ROOT_DEVICE /mnt ;;
+    esac
+    sleep 1
+}
+
+_find_devices() {
+    if [[ "$DEVICE" == *"nvme"* && $SWAP == true ]]; then
+        BOOT_DEVICE="${DEVICE}p1"
+        SWAP_DEVICE="${DEVICE}p2"
+        ROOT_DEVICE="${DEVICE}p3"
+    elif [[ "$DEVICE" == *"nvme"* && $SWAP != true ]]; then
+        BOOT_DEVICE="${DEVICE}p1"
+        ROOT_DEVICE="${DEVICE}p2"
+    elif [[ "$DEVICE" != *"nvme"* && $SWAP = true ]]; then
+        BOOT_DEVICE="${DEVICE}1"
+        SWAP_DEVICE="${DEVICE}2"
+        ROOT_DEVICE="${DEVICE}3"
+    else
+        BOOT_DEVICE="${DEVICE}1"
+        ROOT_DEVICE="${DEVICE}2"
+    fi
+}
+
+_run_mkfs() {
+    _find_devices
+    case $format_step in
+        1) prompt="\nFormatting Boot Partition";;
+        2) prompt="\nFormatting SWAP Partition";;
+        3) prompt="\nFormatting Root Partition";;
+    esac
+    format_device=${DEVICE#'/dev/'}
+    dialog --title "Formatting ${format_device}..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "$prompt" 8 50
+    case $format_step in
+        1) mkfs.fat -F 32 $BOOT_DEVICE ;;
+        2) mkswap $SWAP_DEVICE ;;
+        3) mkfs."$FILE_SYSTEM" $ROOT_DEVICE ;;
     esac
     sleep 1
 }
@@ -1092,7 +1062,7 @@ SUCCESSFUL_FINISH() {
     then
         reboot_timer
     else
-        prompt_argument=2
+        prompt_argument=99
         main
     fi
 }
