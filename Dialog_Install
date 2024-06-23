@@ -50,7 +50,7 @@ aborted() {
 
 check_dependency() {
     if ! command -v "$1" &> /dev/null; then
-        sudo pacman -Sy --noconfirm dialog
+        pacman -Sy --noconfirm dialog
     fi
 }
 
@@ -916,7 +916,7 @@ _run_pacstrap() {
     dialog --title "Installing Base System..." --backtitle "${BACKTITLE}" \
     --colors \
     --infobox "Currently installing: ${packages}" 8 50
-    pacstrap -K /mnt base linux linux-firmware linux-headers "$packages"
+    pacstrap -K /mnt base linux linux-firmware linux-headers $packages
     sleep 1
 }
 
