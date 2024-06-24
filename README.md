@@ -12,3 +12,4 @@ A Custom Arch Linux Installer completely written in Bash and with a Dialog GUI
 - Grub install is non-functional
 - No option for alternative bootloader
 - No option for encryption
+- No way to export or import configs (Working in Testing)
