@@ -67,7 +67,6 @@ init_test() {
 }
 
 _menu_checks() {
-    clear
     prompt=""
     case $prompt_argument in
         1) prompt+="${BOLD}Welcome to My Arch Linux Installer${ENDSTYLE}"
@@ -81,6 +80,7 @@ _menu_checks() {
         6) prompt+="${RED}${BOLD}The script cannot conitnue, please set a root password.${ENDSTYLE}";;
         7) prompt+="${RED}${BOLD}The script cannot conitnue, please select a Desktop.${ENDSTYLE}";;
         8) prompt+="${RED}${BOLD}The script cannot conitnue, please set a Hostname.${ENDSTYLE}";;
+        98) prompt+="${YELLOW}System Install Aborted at last minute. \n${BOLD}Nothing has been changed.${ENDSTYLE}";;
         99) prompt+="${GREEN}${BOLD}Installation Completed Successfully!${ENDSTYLE}"
     esac
         LOCALE_LABEL="Locale: ${GREEN}${SELECTED_LOCALE}${ENDSTYLE}"
@@ -271,7 +271,7 @@ _install_check() {
         ERROR=1
         main
     else
-        SYSTEM_INSTALL
+        install_confirmation
     fi
 }
 
@@ -328,7 +328,6 @@ disk_selection() {
 }
 
 _drive_confirmation() {
-    clear
     if dialog --clear \
     --backtitle "${BACKTITLE}" \
     --colors \
@@ -390,7 +389,6 @@ esac
 }
 
 swap_config() {
-    clear
     if dialog --clear \
     --backtitle "${BACKTITLE}" \
     --colors \
@@ -708,8 +706,9 @@ graphics_drivers() {
     graphicsdriverOptions=(
     1 "Nvidia (Proprietary)"
     2 "Nvidia (OpenKernel)"
-    3 "Nvidia (Nouveau)"
-    4 "Intel \ AMD (Mesa)"
+    3 "Nvidia (vulkan-nouveau)"
+    4 "Nvidia (xf86-video-nouveau)"
+    5 "Intel \ AMD (Mesa)"
 )
 result=$(dialog --clear --title "Graphics Driver Selection" \
     --backtitle "$BACKTITLE" \
@@ -726,10 +725,13 @@ case $? in
             2) GRAPHICS_DRIVER="nvidia-open-dkms"
                 main
                 break ;;
-            3) GRAPHICS_DRIVER="xf86-video-nouveau vulkan-nouveau"
+            3) GRAPHICS_DRIVER="vulkan-nouveau mesa"
                 main
                 break ;;
-            4) GRAPHICS_DRIVER="mesa"
+            4) GRAPHICS_DRIVER="xf86-video-nouveau mesa"
+                main
+                break ;;
+            5) GRAPHICS_DRIVER="mesa xf86-video-amdgpu xf86-video-intel"
                 main
                 break ;;
         esac
@@ -771,6 +773,22 @@ esac
     done
 }
 
+install_confirmation() {
+    if dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --colors \
+    --title "Final Install Confirmation" \
+    --yes-label "YES, I AM SURE" \
+    --no-label "NO, TAKE ME BACK" \
+    --yesno "\nAre you sure you would like to continue with the Install?
+    \n\n${RED}${UNDERLINE}This will completely erase all data on ${BOLD}$DEVICE${ENDSTYLE}" 0 0 ; then
+        SYSTEM_INSTALL
+    else
+        prompt_argument=98
+        main
+    fi
+}
+
 SYSTEM_INSTALL() {
     pacman_step=1 && _run_pacman_config
     pacman_step=2 && _run_pacman_config
@@ -797,6 +815,7 @@ SYSTEM_INSTALL() {
     systemd_step=2 && _run_systemd
     _set_hostname
     _set_locale
+    _run_chroot
     case $AUR_WRAPPER in
         'yay') chroot_steps=1 && _install_yay;;
         'paru') chroot_steps=2 && _install_paru;;
@@ -805,7 +824,6 @@ SYSTEM_INSTALL() {
     if [[ $SYMLINK = true ]]; then
         _run_symlink
     fi
-    _run_chroot
     clean_up
     SUCCESSFUL_FINISH
 }
@@ -833,11 +851,12 @@ _run_drive_partitioning() {
         2) prompt="\nCreating SWAP Partition";;
         3) prompt="\nCreating Root Partition";;
     esac
-    dialog --title "Partitioning ${DEVICE}..." --backtitle "${BACKTITLE}" \
+    format_device=${DEVICE#'/dev/'}
+    dialog --title "Partitioning ${format_device}..." --backtitle "${BACKTITLE}" \
     --colors \
     --infobox "$prompt" 8 50
     case $pacman_step in
-        1) echo "g\nn\n\n\n+128MiB\nt\n1\nw" | fdisk $DEVICE ;;
+        1) echo "g\nn\n\n\n+512MiB\nt\n1\nw" | fdisk $DEVICE ;;
         2) echo "n\n\n\n+2GiB\nt\n2\nswap\nw" | fdisk $DEVICE ;;
         3) echo "n\n\n\n\nw" | fdisk $DEVICE ;;
     esac
@@ -850,7 +869,6 @@ _run_mount_fs() {
         2) prompt="\nMounting the SWAP Partition";;
         3) prompt="\nMounting the Root Partition";;
     esac
-    format_device=${DEVICE#'/dev/'}
     dialog --title "Mounting System Partitions..." --backtitle "${BACKTITLE}" \
     --colors \
     --infobox "$prompt" 8 50
@@ -894,17 +912,18 @@ _run_mkfs() {
     case $format_step in
         1) mkfs.fat -F 32 $BOOT_DEVICE ;;
         2) mkswap $SWAP_DEVICE ;;
-        3) mkfs."$FILE_SYSTEM" $ROOT_DEVICE ;;
+        3) yes | mkfs."$FILE_SYSTEM" $ROOT_DEVICE ;;
     esac
     sleep 1
 }
 
 _run_pacstrap() {
-    packages="sudo git curl wget efibootmgr grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager ${TEXT_EDITOR} ${DISPLAY_MANAGER} "
+    packages="sudo git curl wget efibootmgr grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
+    packages+="${TEXT_EDITOR} ${DISPLAY_MANAGER} ${GRAPHICS_DRIVER} "
     case $DESKTOP in
-        'Gnome') packages+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome " ;;
-        'Kde Plasma') packages+="plasma plasma-meta xdg-desktop-portal-kde " ;;
-        'XFCE') packages+="xfce4 xfce4-goodies " ;;
+        'Gnome') packages+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal " ;;
+        'Kde Plasma') packages+="plasma plasma-meta xdg-desktop-portal-kde kde-applications kde-utilities " ;;
+        'XFCE') packages+="xfce4 xfce4-goodies extra/xfce4-terminal " ;;
     esac
     if [[ "$AUR_WRAPPER" = "yay" ]]; then
         packages+="go "
@@ -916,7 +935,7 @@ _run_pacstrap() {
     dialog --title "Installing Base System..." --backtitle "${BACKTITLE}" \
     --colors \
     --infobox "Currently installing: ${packages}" 8 50
-    pacstrap -K /mnt base linux linux-firmware linux-headers $packages
+    pacstrap -K /mnt base base-devel linux linux-firmware linux-headers $packages
     sleep 1
 }
 
@@ -937,60 +956,24 @@ _run_systemd() {
     --colors \
     --infobox "$prompt" 8 50
     case $systemd_step in
-        1) systemd-nspawn -D /mnt --bind /sys --bind /proc --bind /dev -- systemctl enable $DISPLAY_MANAGER ;;
-        2) systemd-nspawn -D /mnt --bind /sys --bind /proc --bind /dev -- systemctl enable NetworkManager ;;
+        1) systemd-nspawn -D /mnt -- systemctl enable $DISPLAY_MANAGER ;;
+        2) systemd-nspawn -D /mnt -- systemctl enable NetworkManager ;;
     esac
     sleep 1
 }
 
 _set_hostname() {
+    dialog --title "Assigning Hostname..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "echo $NEW_HOST_NAME > /etc/hostname" 8 50
     echo $NEW_HOST_NAME > /mnt/etc/hostname
 }
 
 _set_locale() {
+    dialog --title "Assigning Locale..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "echo $SELECTED_LOCALE > /etc/locale.conf" 8 50
     echo $SELECTED_LOCALE > /mnt/etc/locale.conf
-}
-
-_install_yay() {
-export USERNAME
-    cat << 'EOF' > /mnt/install_yay.sh
-#!/bin/bash
-_install_yay() {
-    cd /tmp
-    git clone https://aur.archlinux.org/yay.git
-    chown -R $USERNAME yay/
-    cd yay/
-    su -c "makepkg" $USERNAME
-    pacman -U --noconfirm yay-*.pkg.tar.zst
-}
-_install_yay
-EOF
-    chmod +x /mnt/install_yay.sh
-    arch-chroot /mnt /install_yay.sh
-    rm -rf /mnt/install_yay.sh
-}
-
-_install_paru() {
-export USERNAME
-    cat << 'EOF' > /mnt/install_paru.sh
-#!/bin/bash
-install_paru() {
-    cd /tmp
-    git clone https://aur.archlinux.org/paru.git
-    chown -R $USERNAME paru/
-    cd paru/
-    su -c "makepkg" $USERNAME
-    pacman -U --noconfirm paru-*.pkg.tar.zst
-}
-install_paru
-EOF
-    chmod +x /mnt/install_paru.sh
-    arch-chroot /mnt /install_paru.sh
-    rm -rf /mnt/install_paru.sh
-}
-
-_run_symlink() {
-    ln -sf /mnt/usr/bin/$TEXT_EDITOR /mnt/usr/bin/vi
 }
 
 _run_chroot() {
@@ -1044,6 +1027,48 @@ chroot_install_steps
 EOF
     chmod +x /mnt/chroot_install.sh
     arch-chroot /mnt /chroot_install.sh
+}
+
+_install_yay() {
+export USERNAME
+    cat << 'EOF' > /mnt/install_yay.sh
+#!/bin/bash
+_install_yay() {
+    cd /tmp
+    git clone https://aur.archlinux.org/yay.git
+    chown -R $USERNAME yay/
+    cd yay/
+    su -c "makepkg" $USERNAME
+    pacman -U --noconfirm yay-*.pkg.tar.zst
+}
+_install_yay
+EOF
+    chmod +x /mnt/install_yay.sh
+    arch-chroot /mnt /install_yay.sh
+    rm -rf /mnt/install_yay.sh
+}
+
+_install_paru() {
+export USERNAME
+    cat << 'EOF' > /mnt/install_paru.sh
+#!/bin/bash
+install_paru() {
+    cd /tmp
+    git clone https://aur.archlinux.org/paru.git
+    chown -R $USERNAME paru/
+    cd paru/
+    su -c "makepkg" $USERNAME
+    pacman -U --noconfirm paru-*.pkg.tar.zst
+}
+install_paru
+EOF
+    chmod +x /mnt/install_paru.sh
+    arch-chroot /mnt /install_paru.sh
+    rm -rf /mnt/install_paru.sh
+}
+
+_run_symlink() {
+    ln -sf /mnt/usr/bin/$TEXT_EDITOR /mnt/usr/bin/vi
 }
 
 clean_up() {
