@@ -6,3 +6,9 @@ A Custom Arch Linux Installer completely written in Bash and with a Dialog GUI
 
 
 > This is just my project to learn Bash and experiment with User Inputs.
+
+
+## Current Issues
+- Grub install is non-functional
+- No option for alternative bootloader
+- No option for encryption
