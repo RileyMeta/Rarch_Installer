@@ -49,7 +49,7 @@ aborted() {
 }
 
 check_dependency() {
-    if ! command -v "$1" &> /dev/null; then
+    if ! command -v "dialog" &> /dev/null; then
         pacman -Sy --noconfirm dialog
     fi
 }
@@ -62,7 +62,7 @@ init_test() {
         _ram_fail
     else
         ping -c 1 google.com || _ping_fail
-        check_dependency dialog
+        check_dependency
     fi
 }
 
