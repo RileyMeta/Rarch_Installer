@@ -1,7 +1,7 @@
 # Arch_Installer
 A Custom Arch Linux Installer completely written in Bash
 
-## I heavily support learning through open-source
-If anyone wants to take this and make their own installer with it, possibly wrap it with Dialog or another TUI/GUI interface, by all means you have my full support.
+![image](https://github.com/RileyMeta/Arch_Installer/assets/32332593/2abee4dc-c412-42a4-a3de-282fe24b87b6)
+
 
 > This is just my project to learn Bash and experiment with User Inputs.
