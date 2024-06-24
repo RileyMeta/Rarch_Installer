@@ -815,7 +815,17 @@ SYSTEM_INSTALL() {
     systemd_step=2 && _run_systemd
     _set_hostname
     _set_locale
-    _run_chroot
+    _change_rootpw
+    if [[ $account_created = true ]]; then
+        _create_user
+    fi
+    if [[ $user_pass = true ]]; then
+        _set_userpw
+    fi
+    if [[ $SUDOER = true ]]; then
+        _run_sudoer
+    fi
+    _install_grub
     case $AUR_WRAPPER in
         'yay') chroot_steps=1 && _install_yay;;
         'paru') chroot_steps=2 && _install_paru;;
@@ -967,6 +977,7 @@ _set_hostname() {
     --colors \
     --infobox "echo $NEW_HOST_NAME > /etc/hostname" 8 50
     echo $NEW_HOST_NAME > /mnt/etc/hostname
+    sleep 1
 }
 
 _set_locale() {
@@ -974,60 +985,115 @@ _set_locale() {
     --colors \
     --infobox "echo $SELECTED_LOCALE > /etc/locale.conf" 8 50
     echo $SELECTED_LOCALE > /mnt/etc/locale.conf
+    sleep 1
 }
 
-_run_chroot() {
-
+_change_rootpw() {
 export ROOT_PW_CONFIRM
-export account_created
-export USERNAME
-export USER_PW_CONFIRM
-export user_pass
-export SUDOER
-
-    cat << 'EOF' > /mnt/chroot_install.sh
+    dialog --title "Adjusting Root Account..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "\nSetting Root Password..." 8 50
+    cat << 'EOF' > /mnt/set_root.sh
 #!/bin/bash
 
-chroot_install_steps() {
-    _set_root_passwd
-    if [[ $account_created = true ]]; then
-        _create_user
-    fi
-    if [[ $user_pass = true ]]; then
-        _set_user_passwd
-    fi
-    if [[ $SUDOER = true ]]; then
-        _run_sudoer
-    fi
-    _install_grub
+set_password() {
+    echo "root:$ROOT_PW_CONFIRM" | chpasswd
 }
 
-_set_root_passwd() {
-    echo root:$ROOT_PW_CONFIRM | chpasswd
+set_password
+EOF
+    chmod +x /mnt/set_root.sh
+    arch-chroot /mnt /set_root.sh
+    rm -rf /mnt/set_root.sh
+    sleep 1
 }
 
 _create_user() {
+export USERNAME
+    dialog --title "Setting up the User account..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "\nCreating User Account" 8 50
+    cat << 'EOF' > /mnt/create_user.sh
+#!/bin/bash
+
+create_user() {
     useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
 }
+create_user
+EOF
+    chmod +x /mnt/create_user.sh
+    arch-chroot /mnt /create_user.sh
+    rm -rf /mnt/create_user.sh
+    sleep 1
+}
 
-_set_user_passwd() {
-    echo $USERNAME:$USER_PW_CONFIRM | chpasswd
+_set_userpw() {
+export user_pass
+    dialog --title "Setting up the User account..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "\nSetting User Password" 8 50
+    cat << 'EOF' > /mnt/set_user.sh
+#!/bin/bash
+
+set_password() {
+    echo "root:$user_pass" | chpasswd
+}
+
+set_password
+EOF
+    chmod +x /mnt/set_user.sh
+    arch-chroot /mnt /set_user.sh
+    rm -rf /mnt/set_user.sh
+    sleep 1
 }
 
 _run_sudoer() {
+export USERNAME
+    dialog --title "Setting up the User account..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "\nSetting $USERNAME as sudoer" 8 50
+    cat << 'EOF' > /mnt/sudoer.sh
+#!/bin/bash
+set_sudoer(){
     sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
+}
+set_sudoer
+EOF
+    chmod +x /mnt/sudoer.sh
+    arch-chroot /mnt /sudoer.sh
+    rm -rf /mnt/sudoer.sh
+    sleep 1
+}
+
+_install_grub_dialog() {
+    case $grub_step in
+        1) prompt="Mounting $BOOT_DEVICE to /boot";;
+        2) prompt="Installing Grub to /boot";;
+        3) prompt="Generating Grub Config";;
+    esac
+    dialog --title "Setting Up bootloader..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "\n$prompt" 8 50
 }
 
 _install_grub() {
+export $BOOT_DEVICE
+    cat << 'EOF' > /mnt/grub_install.sh
+#!/bin/bash
+
+install_grub(){
     mount $BOOT_DEVICE /boot
     grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
-    grub-mkconfig -o /boot/grub/grub.cfg
 }
-chroot_install_steps
+install_grub
 EOF
-    chmod +x /mnt/chroot_install.sh
-    arch-chroot /mnt /chroot_install.sh
+    chmod +x /mnt/grub_install.sh
+    arch-chroot /mnt /grub_install.sh
+    rm -rf /mnt/grub_install.sh
+    sleep 1
 }
+
+    grub-mkconfig -o /boot/grub/grub.cfg
 
 _install_yay() {
 export USERNAME
