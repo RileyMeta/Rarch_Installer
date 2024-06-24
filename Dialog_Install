@@ -928,7 +928,7 @@ _run_mkfs() {
 }
 
 _run_pacstrap() {
-    packages="sudo git curl wget efibootmgr grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
+    packages="sudo git curl wget efibootmgr efivar grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
     packages+="${TEXT_EDITOR} ${DISPLAY_MANAGER} ${GRAPHICS_DRIVER} "
     case $DESKTOP in
         'Gnome') packages+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal " ;;
