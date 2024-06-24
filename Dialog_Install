@@ -49,7 +49,7 @@ aborted() {
 }
 
 check_dependency() {
-    if ! command -v "dialog" &> /dev/null; then
+    if ! command -v "$1" &> /dev/null; then
         pacman -Sy --noconfirm dialog
     fi
 }
@@ -62,7 +62,7 @@ init_test() {
         _ram_fail
     else
         ping -c 1 google.com || _ping_fail
-        check_dependency
+        check_dependency dialog
     fi
 }
 
@@ -927,25 +927,34 @@ _run_mkfs() {
     sleep 1
 }
 
-_run_pacstrap() {
-    packages="sudo git curl wget efibootmgr efivar grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
-    packages+="${TEXT_EDITOR} ${DISPLAY_MANAGER} ${GRAPHICS_DRIVER} "
+_choose_packages() {
+    PACSTRAP_PACKAGES="sudo git curl wget efibootmgr efivar grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
+    PACSTRAP_PACKAGES+="${TEXT_EDITOR} ${DISPLAY_MANAGER} ${GRAPHICS_DRIVER} "
     case $DESKTOP in
-        'Gnome') packages+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal " ;;
-        'Kde Plasma') packages+="plasma plasma-meta xdg-desktop-portal-kde kde-applications kde-utilities " ;;
-        'XFCE') packages+="xfce4 xfce4-goodies extra/xfce4-terminal " ;;
+        'Gnome') PACSTRAP_PACKAGES+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal " ;;
+        'Kde Plasma') PACSTRAP_PACKAGES+="plasma plasma-meta xdg-desktop-portal-kde kde-applications kde-utilities " ;;
+        'XFCE') PACSTRAP_PACKAGES+="xfce4 xfce4-goodies extra/xfce4-terminal " ;;
     esac
     if [[ "$AUR_WRAPPER" = "yay" ]]; then
-        packages+="go "
+        PACSTRAP_PACKAGES+="go "
     fi
     case $FILE_SYSTEM in
-        "ext4") packages+="e2fsprogs " ;;
-        "btrfs") packages+="btrfs-progs " ;;
+        "ext4") PACSTRAP_PACKAGES+="e2fsprogs " ;;
+        "btrfs") PACSTRAP_PACKAGES+="btrfs-progs " ;;
     esac
+}
+
+pacstrap_message() {
+    local message=$1
     dialog --title "Installing Base System..." --backtitle "${BACKTITLE}" \
     --colors \
-    --infobox "Currently installing: ${packages}" 8 50
-    pacstrap -K /mnt base base-devel linux linux-firmware linux-headers $packages
+    --infobox "$message" 8 50
+}
+
+_run_pacstrap() {
+    _choose_packages
+    pacstrap_message "Updating package list..."
+    pacstrap -K /mnt base base-devel linux linux-firmware linux-headers $PACSTRAP_PACKAGES > /tmp/infobox_output 2>&1
     sleep 1
 }
 
