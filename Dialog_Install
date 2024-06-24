@@ -28,6 +28,7 @@ TEXT_EDITOR=""
 root_pass_set=false
 AUR_WRAPPER="none"
 DESKTOP="None (TTY Only)"
+GRAPHICS_PROMPT=0
 account_created=false
 HOST_NAME=""
 SELECTED_LOCALE="en_US.UTF-8"
@@ -128,7 +129,20 @@ _menu_checks() {
     else
         AUR_LABEL="AUR Wrapper: ${CYAN}None Chosen${ENDSTYLE}"
     fi
-    DESKTOP_LABEL="Desktop: ${GREEN}${DESKTOP}${ENDSTYLE}" 
+    DESKTOP_LABEL="Desktop: ${GREEN}${DESKTOP}${ENDSTYLE}"
+    GPU_DRIVER_LABEL="Graphics Driver: ${GREEN}"
+    case $GRAPHICS_PROMPT in
+        0) GPU_DRIVER_LABEL+="None ${ENDSTYLE}*default";;
+        1) GPU_DRIVER_LABEL+="Nvidia Proprietary";;
+        2) GPU_DRIVER_LABEL+="Nvidia OpenKernel";;
+        3) GPU_DRIVER_LABEL+="Nvidia OpenSource";;
+        4) GPU_DRIVER_LABEL+="Nvidia OpenSource";;
+        5) GPU_DRIVER_LABEL+="Intel";;
+        6) GPU_DRIVER_LABEL+="AMD";;
+        7) GPU_DRIVER_LABEL+="Mesa ${ENDSTYLE}*backend only";;
+        8) GPU_DRIVER_LABEL+="No Drivers";;
+    esac
+    GPU_DRIVER_LABEL+="${ENDSTYLE}"
     if [[ $account_created = true ]]; then
         if [[ $SUDOER = true ]]; then
             USER_ACCOUNT_LABEL="User Account: ${GREEN}${NEW_USERNAME}${ENDSTYLE}*"
@@ -158,12 +172,14 @@ main() {
     7 "${USER_ACCOUNT_LABEL}"
     8 "${TEXT_EDITOR_LABEL}"
     9 "${DESKTOP_LABEL}"
-    10 "${AUR_LABEL}"
-    11 "${GREEN}${REVERSE} Install ${ENDSTYLE}"
+    10 "${GPU_DRIVER_LABEL}"
+    11 "${AUR_LABEL}"
+    12 "${GREEN}${REVERSE} Install ${ENDSTYLE}"
 )
 result=$(dialog --clear --title "${MAIN_TITLE}" \
     --backtitle "$BACKTITLE" \
     --colors \
+    --default-item "$default_item" \
     --cancel-label "Exit" \
     --stdout \
     --menu "${prompt}" 0 0 10 "${mainMenuOptions[@]}")
@@ -188,9 +204,11 @@ case $? in
                 break ;;
             9) choose_desktop
                 break ;;
-            10) aur_wrapper
+            10) graphics_drivers
                 break ;;
-            11) _install_check
+            11) aur_wrapper
+                break ;;
+            12) _install_check
                 break ;;
         esac
         ;;
@@ -242,6 +260,7 @@ locale_selection() {
         if [ $DEFAULT_LOCALE = true ];then 
             SELECTED_LOCALE="en_US.UTF-8"
             DEFAULT_LOCALE=false
+            default_item=2
         else
             SELECTED_LOCALE="${SELECTED_LOCALE}"
         fi
@@ -333,6 +352,7 @@ _drive_confirmation() {
     --colors \
     --title "Disk Confirmation" \
     --yesno "Are you sure you would like to use ${CYAN}${DEVICE}${ENDSTYLE}?" 0 0 ; then
+        default_item=4
         main
     else
         DEVICE=""
@@ -352,6 +372,7 @@ hostname() {
     if [ $? -eq 0 ]; then
         prompt_argument=1
         ERROR=0
+        default_item=3
         main
     else
         main
@@ -374,11 +395,11 @@ result=$(dialog --clear --title "Filesystem Selection" \
 case $? in
     0)  case $result in
             1) FILE_SYSTEM="ext4"
-                echo "${FILE_SYSTEM}"
+                default_item=5
                 main
                 break ;;
             2) FILE_SYSTEM="btrfs"
-                echo "${FILE_SYSTEM}"
+                default_item=5
                 main
                 break ;;
         esac
@@ -395,9 +416,11 @@ swap_config() {
     --title "Swap Partition" \
     --yesno "\nWould you like to use a ${CYAN}2GiB${ENDSTYLE} swap partition?" 0 0 ; then
         SWAP=true
+        default_item=6
         main
     else
         SWAP=false
+        default_item=6
         main
     fi
 }
@@ -447,6 +470,7 @@ _confirm_root_pw() {
     else
         if [[ $ROOT_PW_CONFIRM = $ROOT_PW ]]; then
             root_pass_set=true
+            default_item=7
             main
         else
             ROOT_INCORRECT=2
@@ -474,9 +498,11 @@ account_creation() {
         if [[ $USERNAME != "" ]]; then 
             USER_INCORRECT=1 # Default / Normal response
             NEW_USERNAME="${USERNAME,,}"
+            default_item=8
             user_password_check
         else
             USERNAME_INCORRECT=true
+            default_item=8
             account_creation
         fi
     fi
@@ -584,21 +610,27 @@ result=$(dialog --clear --title "Text Editor Selection" \
 case $? in
     0)  case $result in
             1) TEXT_EDITOR="vi"
+                default_item=9
                 main
                 break ;;
             2) TEXT_EDITOR="vim"
+                default_item=9
                 main
                 break ;;
             3) TEXT_EDITOR="neovim"
+                default_item=9
                 text_editor_symlink
                 break ;;
             4) TEXT_EDITOR="nano"
+                default_item=9
                 text_editor_symlink
                 break ;;
             5) TEXT_EDITOR="emacs"
+                default_item=9
                 text_editor_symlink
                 break ;;
             6) TEXT_EDITOR="none"
+                default_item=9
                 main
                 break ;;
         esac
@@ -683,16 +715,20 @@ result=$(dialog --clear --title "Display Manager Selection" \
 case $? in
     0)  case $result in
             1) DISPLAY_MANAGER="gdm"
-                graphics_drivers
+                default_item=10
+                main
                 break ;;
             2) DISPLAY_MANAGER="sddm"
-                graphics_drivers
+                default_item=10
+                main
                 break ;;
             3) DISPLAY_MANAGER="lightdm"
-                graphics_drivers
+                default_item=10
+                main
                 break ;;
             4) DISPLAY_MANAGER="sx"
-                graphics_drivers
+                default_item=10
+                main
                 break ;;
         esac
         ;;
@@ -708,37 +744,93 @@ graphics_drivers() {
     2 "Nvidia (OpenKernel)"
     3 "Nvidia (vulkan-nouveau)"
     4 "Nvidia (xf86-video-nouveau)"
-    5 "Intel \ AMD (Mesa)"
+    5 "Intel (xf86-video-intel)"
+    6 "AMD (xf86-video-amdgpu)"
+    7 "Mesa (openGL drivers)"
+    8 "None"
 )
 result=$(dialog --clear --title "Graphics Driver Selection" \
     --backtitle "$BACKTITLE" \
     --colors \
     --cancel-label "Exit" \
+    --extra-button \
+    --extra-label "More Info" \
     --stdout \
-    --menu "\nPlease select your preferred graphics driver" 0 0 3 "${graphicsdriverOptions[@]}")
+    --menu "\nPlease select your preferred graphics driver
+    \n\nor check 'More Info' to see what all will be installed." 0 0 6 "${graphicsdriverOptions[@]}")
 
 case $? in
     0)  case $result in
             1) GRAPHICS_DRIVER="nvidia-dkms nvidia-utils"
+                GRAPHICS_PROMPT=1
+                default_item=11
                 main
                 break ;;
             2) GRAPHICS_DRIVER="nvidia-open-dkms"
+                GRAPHICS_PROMPT=2
+                default_item=11
                 main
                 break ;;
             3) GRAPHICS_DRIVER="vulkan-nouveau mesa"
+                GRAPHICS_PROMPT=3
+                default_item=11
                 main
                 break ;;
             4) GRAPHICS_DRIVER="xf86-video-nouveau mesa"
+                GRAPHICS_PROMPT=4
+                default_item=11
                 main
                 break ;;
-            5) GRAPHICS_DRIVER="mesa xf86-video-amdgpu xf86-video-intel"
+            5) GRAPHICS_DRIVER="xf86-video-intel mesa"
+                GRAPHICS_PROMPT=5
+                default_item=11
+                main
+                break ;;
+            6) GRAPHICS_DRIVER="xf86-video-amdgpu mesa"
+                GRAPHICS_PROMPT=6
+                default_item=11
+                main
+                break ;;
+            7) GRAPHICS_DRIVER="mesa"
+                GRAPHICS_PROMPT=7
+                default_item=11
+                main
+                break ;;
+            8) GRAPHICS_DRIVER=""
+                GRAPHICS_PROMPT=8
+                default_item=11
                 main
                 break ;;
         esac
         ;;
-    1) main;;
+    1) main
+        break;;
+    3) gpu_explain
+        break;;
 esac
     done
+}
+
+gpu_explain() {
+    GPU_MESSAGE="\nBelow is a table explaining what drivers work for what GPUs:"
+    GPU_MESSAGE+="\n\n${BOLD}==Type=====Driver===============GPU=================Backend============${BOLD_END}"
+    GPU_MESSAGE+="\n| nvidia   ${GREEN}Proprietary${ENDSTYLE}          (10 series +)       ${CYAN}nvidia-utils${ENDSTYLE}      |"
+    GPU_MESSAGE+="\n| nvidia   ${GREEN}OpenKernel${ENDSTYLE}           (10 series +)       ${CYAN}nvidia-utils${ENDSTYLE}      |"
+    GPU_MESSAGE+="\n| nvidia   ${GREEN}vulkan-nouveau${ENDSTYLE}       (600 - 10 series)   ${CYAN}mesa${ENDSTYLE}              |"
+    GPU_MESSAGE+="\n| nvidia   ${GREEN}xf86-video-nouveau${ENDSTYLE}   ${RED}(pre 600 series)${ENDSTYLE}    ${CYAN}mesa${ENDSTYLE}              |"
+    GPU_MESSAGE+="\n| intel    ${GREEN}xf86-video-intel${ENDSTYLE}     (Intel iGPU)        ${CYAN}mesa${ENDSTYLE}              |"
+    GPU_MESSAGE+="\n| amd      ${GREEN}xf86-video-amdgpu${ENDSTYLE}    (AMD GPUs)          ${CYAN}mesa${ENDSTYLE}              |"
+    GPU_MESSAGE+="\n| mesa     *misc*               *ALL*               *is the backend*  |"
+    GPU_MESSAGE+="\n${BOLD}=======================================================================${BOLD_END}"
+    dialog --clear \
+    --backtitle "$BACKTITLE" \
+    --title "GPU Driver Table" \
+    --colors \
+    --cr-wrap \
+    --msgbox "$GPU_MESSAGE" 0 0
+    if [[ $? = 0 ]]; then
+        graphics_drivers
+    fi
 }
 
 aur_wrapper() {
@@ -758,12 +850,15 @@ result=$(dialog --clear --title "Aur Wrapper" \
 case $? in
     0)  case $result in
             1) AUR_WRAPPER="yay"
+                default_item=12
                 main
                 break ;;
             2) AUR_WRAPPER="paru"
+                default_item=12
                 main
                 break ;;
             3) AUR_WRAPPER="none"
+                default_item=12
                 main
                 break ;;
         esac
@@ -959,6 +1054,7 @@ _run_pacstrap() {
 }
 
 _run_genfstab() {
+    mount $BOOT_DEVICE /mnt/boot
     dialog --title "Generating FSTAB..." --backtitle "${BACKTITLE}" \
     --colors \
     --infobox "\nCurrently populating /etc/FSTAB with relevant Device Data" 8 50
