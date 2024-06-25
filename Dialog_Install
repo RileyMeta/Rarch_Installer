@@ -815,11 +815,11 @@ gpu_explain() {
     GPU_MESSAGE="\nBelow is a table explaining what drivers work for what GPUs:"
     GPU_MESSAGE+="\n\n${BOLD}==Type=====Driver===============GPU=================Backend============${BOLD_END}"
     GPU_MESSAGE+="\n| nvidia   ${GREEN}Proprietary${ENDSTYLE}          (10 series +)       ${CYAN}nvidia-utils${ENDSTYLE}      |"
-    GPU_MESSAGE+="\n| nvidia   ${GREEN}OpenKernel${ENDSTYLE}           (10 series +)       ${CYAN}nvidia-utils${ENDSTYLE}      |"
-    GPU_MESSAGE+="\n| nvidia   ${GREEN}vulkan-nouveau${ENDSTYLE}       (600 - 10 series)   ${CYAN}mesa${ENDSTYLE}              |"
-    GPU_MESSAGE+="\n| nvidia   ${GREEN}xf86-video-nouveau${ENDSTYLE}   ${RED}(pre 600 series)${ENDSTYLE}    ${CYAN}mesa${ENDSTYLE}              |"
-    GPU_MESSAGE+="\n| intel    ${GREEN}xf86-video-intel${ENDSTYLE}     (Intel iGPU)        ${CYAN}mesa${ENDSTYLE}              |"
-    GPU_MESSAGE+="\n| amd      ${GREEN}xf86-video-amdgpu${ENDSTYLE}    (AMD GPUs)          ${CYAN}mesa${ENDSTYLE}              |"
+    GPU_MESSAGE+="\n| nvidia   ${GREEN}OpenKernel${ENDSTYLE}           (16 series +)       ${CYAN}nvidia-utils${ENDSTYLE}      |"
+    GPU_MESSAGE+="\n| nvidia   ${GREEN}vulkan-nouveau${ENDSTYLE}       (16 series +)       ${CYAN}mesa${ENDSTYLE}              |"
+    GPU_MESSAGE+="\n| nvidia   ${GREEN}xf86-video-nouveau${ENDSTYLE}   (All*       )       ${CYAN}mesa${ENDSTYLE}              |"
+    GPU_MESSAGE+="\n| intel    ${GREEN}xf86-video-intel${ENDSTYLE}     (Intel iGPU )       ${CYAN}mesa${ENDSTYLE}              |"
+    GPU_MESSAGE+="\n| amd      ${GREEN}xf86-video-amdgpu${ENDSTYLE}    (AMD GPUs   )       ${CYAN}mesa${ENDSTYLE}              |"
     GPU_MESSAGE+="\n| mesa     *misc*               *ALL*               *is the backend*  |"
     GPU_MESSAGE+="\n${BOLD}=======================================================================${BOLD_END}"
     dialog --clear \
@@ -906,6 +906,7 @@ SYSTEM_INSTALL() {
     fi
     mounting_step=3 && _run_mount_fs
     _run_pacstrap
+    _run_genfstab
     systemd_step=1 && _run_systemd
     systemd_step=2 && _run_systemd
     _set_hostname
@@ -978,7 +979,7 @@ _run_mount_fs() {
     --colors \
     --infobox "$prompt" 8 50
     case $mounting_step in
-        1) mount --mkdir $BOOT_DEVICE /mnt/boot ;;
+        1) mount --mkdir $BOOT_DEVICE /mnt/boot/efi ;;
         2) swapon $SWAP_DEVICE ;;
         3) mount $ROOT_DEVICE /mnt ;;
     esac
@@ -1039,17 +1040,13 @@ _choose_packages() {
     esac
 }
 
-pacstrap_message() {
-    local message=$1
-    dialog --title "Installing Base System..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "$message" 8 50
-}
-
 _run_pacstrap() {
     _choose_packages
-    pacstrap_message "Updating package list..."
+    dialog --title "Installing Base System..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "$pacstrap_message" 8 50
     pacstrap -K /mnt base base-devel linux linux-firmware linux-headers $PACSTRAP_PACKAGES > /tmp/infobox_output 2>&1
+    pacstrap_message=$1
     sleep 1
 }
 
