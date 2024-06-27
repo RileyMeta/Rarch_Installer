@@ -337,7 +337,7 @@ disk_selection() {
 
     if [ -n "$selection" ]; then
         chosen_option=$(echo "$menu_options" | awk -v sel="$selection" '{for(i=1; i<=NF; i+=2) if($i == sel) print $(i+1)}')
-        DEVICE="/dev/${chosen_option}"
+        DEVICE="${chosen_option}"
         STEP_CONFIRM=1
         CONFIRM_MESSAGE=1
         _drive_confirmation
@@ -958,8 +958,7 @@ _run_drive_partitioning() {
         2) prompt="\nCreating SWAP Partition";;
         3) prompt="\nCreating Root Partition";;
     esac
-    format_device=${DEVICE#'/dev/'}
-    dialog --title "Partitioning ${format_device}..." --backtitle "${BACKTITLE}" \
+    dialog --title "Partitioning ${DEVICE}..." --backtitle "${BACKTITLE}" \
     --colors \
     --infobox "$prompt" 8 50
     case $pacman_step in
@@ -989,19 +988,19 @@ _run_mount_fs() {
 
 _find_devices() {
     if [[ "$DEVICE" == *"nvme"* && $SWAP == true ]]; then
-        BOOT_DEVICE="${DEVICE}p1"
-        SWAP_DEVICE="${DEVICE}p2"
-        ROOT_DEVICE="${DEVICE}p3"
+        BOOT_DEVICE="/dev/${DEVICE}p1"
+        SWAP_DEVICE="/dev/${DEVICE}p2"
+        ROOT_DEVICE="/dev/${DEVICE}p3"
     elif [[ "$DEVICE" == *"nvme"* && $SWAP != true ]]; then
-        BOOT_DEVICE="${DEVICE}p1"
-        ROOT_DEVICE="${DEVICE}p2"
+        BOOT_DEVICE="/dev/${DEVICE}p1"
+        ROOT_DEVICE="/dev/${DEVICE}p2"
     elif [[ "$DEVICE" != *"nvme"* && $SWAP = true ]]; then
-        BOOT_DEVICE="${DEVICE}1"
-        SWAP_DEVICE="${DEVICE}2"
-        ROOT_DEVICE="${DEVICE}3"
+        BOOT_DEVICE="/dev/${DEVICE}1"
+        SWAP_DEVICE="/dev/${DEVICE}2"
+        ROOT_DEVICE="/dev/${DEVICE}3"
     else
-        BOOT_DEVICE="${DEVICE}1"
-        ROOT_DEVICE="${DEVICE}2"
+        BOOT_DEVICE="/dev/${DEVICE}1"
+        ROOT_DEVICE="/dev/${DEVICE}2"
     fi
 }
 
@@ -1012,8 +1011,7 @@ _run_mkfs() {
         2) prompt="\nFormatting SWAP Partition";;
         3) prompt="\nFormatting Root Partition";;
     esac
-    format_device=${DEVICE#'/dev/'}
-    dialog --title "Formatting ${format_device}..." --backtitle "${BACKTITLE}" \
+    dialog --title "Formatting ${DEVICE}..." --backtitle "${BACKTITLE}" \
     --colors \
     --infobox "$prompt" 8 50
     case $format_step in
