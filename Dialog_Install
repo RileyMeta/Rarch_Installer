@@ -922,6 +922,7 @@ SYSTEM_INSTALL() {
         _run_sudoer
     fi
     _install_grub
+    _grub_mkconfig
     case $AUR_WRAPPER in
         'yay') chroot_steps=1 && _install_yay;;
         'paru') chroot_steps=2 && _install_paru;;
@@ -1196,7 +1197,9 @@ EOF
     sleep 1
 }
 
+_grub_mkconfig() {
     grub-mkconfig -o /boot/grub/grub.cfg
+}
 
 _install_yay() {
 export USERNAME
