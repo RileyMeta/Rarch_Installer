@@ -337,7 +337,7 @@ disk_selection() {
 
     if [ -n "$selection" ]; then
         chosen_option=$(echo "$menu_options" | awk -v sel="$selection" '{for(i=1; i<=NF; i+=2) if($i == sel) print $(i+1)}')
-        DEVICE="/dev/$chosen_option"
+        DEVICE="/dev/${chosen_option}"
         STEP_CONFIRM=1
         CONFIRM_MESSAGE=1
         _drive_confirmation
@@ -980,7 +980,7 @@ _run_mount_fs() {
     --colors \
     --infobox "$prompt" 8 50
     case $mounting_step in
-        1) mount --mkdir $BOOT_DEVICE /mnt/boot/efi ;;
+        1) mkdir -p /mnt/boot/efi && mount $BOOT_DEVICE /mnt/boot/efi ;;
         2) swapon $SWAP_DEVICE ;;
         3) mount $ROOT_DEVICE /mnt ;;
     esac
