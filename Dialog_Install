@@ -4,16 +4,12 @@ ENDSTYLE="\Zn"
 BOLD="\Zb"
 BOLD_END="\ZB"
 REVERSE="\Zr"
-REVERSE_END="\ZR"
 UNDERLINE="\Zu"
-UNDERLINE_END="\ZU"
 RED="\Z1"
 GREEN="\Z2"
 YELLOW="\Z3"
 BLUE="\Z4"
-MAGENTA="\Z5"
 CYAN="\Z6"
-WHITE="\Z7"
 
 TERMINAL_RED="\e[31m"
 TERMINAL_END="\e[0m"
@@ -36,6 +32,7 @@ DEFAULT_LOCALE=true
 prompt_argument=1
 ERROR=0
 ROOT_INCORRECT=1
+required=5
 
 trap 'aborted' INT
 
@@ -157,6 +154,11 @@ _menu_checks() {
     else
         MAIN_TITLE="An Error has occurred"
     fi
+    if [[ $required != 0 ]]; then
+        INSTALL_LABEL="${REVERSE}${RED}Install${ENDSTYLE}"
+    else
+        INSTALL_LABEL="${REVERSE}${GREEN}Install${ENDSTYLE}"
+    fi
 }
 
 main() {
@@ -174,7 +176,7 @@ main() {
     9 "${DESKTOP_LABEL}"
     10 "${GPU_DRIVER_LABEL}"
     11 "${AUR_LABEL}"
-    12 "${GREEN}${REVERSE} Install ${ENDSTYLE}"
+    12 "${INSTALL_LABEL}"
 )
 result=$(dialog --clear --title "${MAIN_TITLE}" \
     --backtitle "$BACKTITLE" \
@@ -340,6 +342,7 @@ disk_selection() {
         DEVICE="${chosen_option}"
         STEP_CONFIRM=1
         CONFIRM_MESSAGE=1
+        (($required--))
         _drive_confirmation
     else
         main
@@ -373,6 +376,7 @@ hostname() {
         prompt_argument=1
         ERROR=0
         default_item=3
+        (($required--))
         main
     else
         main
@@ -396,10 +400,12 @@ case $? in
     0)  case $result in
             1) FILE_SYSTEM="ext4"
                 default_item=5
+                (($required--))
                 main
                 break ;;
             2) FILE_SYSTEM="btrfs"
                 default_item=5
+                (($required--))
                 main
                 break ;;
         esac
@@ -417,10 +423,12 @@ swap_config() {
     --yesno "\nWould you like to use a ${CYAN}2GiB${ENDSTYLE} swap partition?" 0 0 ; then
         SWAP=true
         default_item=6
+        (($required--))
         main
     else
         SWAP=false
         default_item=6
+        (($required--))
         main
     fi
 }
@@ -471,6 +479,7 @@ _confirm_root_pw() {
         if [[ $ROOT_PW_CONFIRM = $ROOT_PW ]]; then
             root_pass_set=true
             default_item=7
+            (($required--))
             main
         else
             ROOT_INCORRECT=2
@@ -634,6 +643,7 @@ case $? in
                 main
                 break ;;
         esac
+        (($required--))
         ;;
     1) main;;
 esac
@@ -961,7 +971,7 @@ _run_drive_partitioning() {
     dialog --title "Partitioning ${DEVICE}..." --backtitle "${BACKTITLE}" \
     --colors \
     --infobox "$prompt" 8 50
-    case $pacman_step in
+    case $partition_step in
         1) echo "g\nn\n\n\n+512MiB\nt\n1\nw" | fdisk $DEVICE ;;
         2) echo "n\n\n\n+2GiB\nt\n2\nswap\nw" | fdisk $DEVICE ;;
         3) echo "n\n\n\n\nw" | fdisk $DEVICE ;;
@@ -1196,7 +1206,7 @@ EOF
 }
 
 _grub_mkconfig() {
-    grub-mkconfig -o /boot/grub/grub.cfg
+    grub-mkconfig -o /mnt/boot/grub/grub.cfg
 }
 
 _install_yay() {
