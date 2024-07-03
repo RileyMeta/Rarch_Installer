@@ -62,7 +62,6 @@ init_test() {
         ping -c 1 google.com || _ping_fail
         check_dependency dialog
     fi
-    main
 }
 
 _menu_checks() {
@@ -901,15 +900,19 @@ SYSTEM_INSTALL() {
     pacman_step=3 && _run_pacman_config
     _run_drive_partitioning
     _set_partition_type
-    _confirm_format_device
     _format_drive
     _mount_filesystem
     _run_pacstrap
     _run_genfstab
     _set_root_PW
     _install_grub
-    _INSTALL_pacman_config
-    _create_user
+    _run_systemd
+    _set_hostname
+    _set_locale
+    _INSTALL_pacman_config # Change Pacman.conf on New Install
+    if [[ $account_created = true ]]; then
+        _create_user
+    fi
     case $AUR_WRAPPER in
         'yay') chroot_steps=1 && _install_yay;;
         'paru') chroot_steps=2 && _install_paru;;
@@ -935,134 +938,6 @@ _run_pacman_config() {
         1) sed -i 's/#ParallelDownloads = 5/ParallelDownloads = 10/g' /etc/pacman.conf ;;
         2) sed -i 's/#Color/Color/g' /etc/pacman.conf ;;
         3) sed -i 's/#VerbosePkgLists/VerbosePkgLists/g' /etc/pacman.conf ;;
-    esac
-    sleep 1
-}
-
-### UNSURE IF THE BELOW IS WORKING. IT DOES NOT SEEM TO BE IN PRACTICE, PLEASE FIX.
-
-_run_drive_partitioning() {
-    case $partition_step in
-        0) prompt="\nCreating New GPT Label";;
-        1) prompt="\nCreating Boot Partition";;
-        2) prompt="\nCreating SWAP Partition";;
-        3) prompt="\nCreating Root Partition";;
-    esac
-    dialog --title "Partitioning ${DEVICE}..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "$prompt" 8 50
-    case $partition_step in
-        0) echo "g\nn" | fdisk $DEVICE ;;
-        1) lsblk $DEVICE && echo "1";;
-        2) lsblk $DEVICE && echo "2";;
-        3) lsblk $DEVICE && echo "3";;
-        # 1) echo "g\nn\n\n\n+512MiB\nt\n1\nw" | fdisk $DEVICE ;;
-        # 2) echo "n\n\n\n+2GiB\nt\n2\nswap\nw" | fdisk $DEVICE ;;
-        # 3) echo "n\n\n\n\nw" | fdisk $DEVICE ;;
-    esac
-    sleep 1
-}
-
-_run_mount_fs() {
-    case $mounting_step in
-        1) prompt="\nMounting the Boot Partition";;
-        2) prompt="\nMounting the SWAP Partition";;
-        3) prompt="\nMounting the Root Partition";;
-    esac
-    dialog --title "Mounting System Partitions..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "$prompt" 8 50
-    case $mounting_step in
-        1) mkdir -p /mnt/boot/efi && mount $BOOT_DEVICE /mnt/boot/efi ;;
-        2) swapon $SWAP_DEVICE ;;
-        3) mount $ROOT_DEVICE /mnt ;;
-    esac
-    sleep 1
-}
-
-_find_devices() {
-    if [[ "$DEVICE" == *"nvme"* && $SWAP == true ]]; then
-        BOOT_DEVICE="/dev/${DEVICE}p1"
-        SWAP_DEVICE="/dev/${DEVICE}p2"
-        ROOT_DEVICE="/dev/${DEVICE}p3"
-    elif [[ "$DEVICE" == *"nvme"* && $SWAP != true ]]; then
-        BOOT_DEVICE="/dev/${DEVICE}p1"
-        ROOT_DEVICE="/dev/${DEVICE}p2"
-    elif [[ "$DEVICE" != *"nvme"* && $SWAP = true ]]; then
-        BOOT_DEVICE="/dev/${DEVICE}1"
-        SWAP_DEVICE="/dev/${DEVICE}2"
-        ROOT_DEVICE="/dev/${DEVICE}3"
-    else
-        BOOT_DEVICE="/dev/${DEVICE}1"
-        ROOT_DEVICE="/dev/${DEVICE}2"
-    fi
-}
-
-_run_mkfs() {
-    _find_devices
-    case $format_step in
-        1) prompt="\nFormatting Boot Partition";;
-        2) prompt="\nFormatting SWAP Partition";;
-        3) prompt="\nFormatting Root Partition";;
-    esac
-    dialog --title "Formatting ${DEVICE}..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "$prompt" 8 50
-    case $format_step in
-        1) mkfs.fat -F 32 $BOOT_DEVICE ;;
-        2) mkswap $SWAP_DEVICE ;;
-        3) yes | mkfs."$FILE_SYSTEM" $ROOT_DEVICE ;;
-    esac
-    sleep 1
-}
-
-_choose_packages() {
-    PACSTRAP_PACKAGES="sudo git curl wget efibootmgr efivar grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
-    PACSTRAP_PACKAGES+="${TEXT_EDITOR} ${DISPLAY_MANAGER} ${GRAPHICS_DRIVER} "
-    case $DESKTOP in
-        'Gnome') PACSTRAP_PACKAGES+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal " ;;
-        'Kde Plasma') PACSTRAP_PACKAGES+="plasma plasma-meta xdg-desktop-portal-kde kde-applications kde-utilities " ;;
-        'XFCE') PACSTRAP_PACKAGES+="xfce4 xfce4-goodies extra/xfce4-terminal " ;;
-    esac
-    if [[ "$AUR_WRAPPER" = "yay" ]]; then
-        PACSTRAP_PACKAGES+="go "
-    fi
-    case $FILE_SYSTEM in
-        "ext4") PACSTRAP_PACKAGES+="e2fsprogs " ;;
-        "btrfs") PACSTRAP_PACKAGES+="btrfs-progs " ;;
-    esac
-}
-
-_run_pacstrap() {
-    _choose_packages
-    dialog --title "Installing Base System..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "$pacstrap_message" 8 50
-    pacstrap -K /mnt base base-devel linux linux-firmware linux-headers $PACSTRAP_PACKAGES > /tmp/infobox_output 2>&1
-    pacstrap_message=$1
-    sleep 1
-}
-
-_run_genfstab() {
-    mount $BOOT_DEVICE /mnt/boot
-    dialog --title "Generating FSTAB..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "\nCurrently populating /etc/FSTAB with relevant Device Data" 8 50
-    genfstab -U /mnt >> /mnt/etc/fstab
-    sleep 1
-}
-
-_run_systemd() {
-    case $systemd_step in
-        1) prompt="\nEnabling $DISPLAY_MANAGER";;
-        2) prompt="\nEnabling Network Manager";;
-    esac
-    dialog --title "Enabling SystemD Services..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "$prompt" 8 50
-    case $systemd_step in
-        1) systemd-nspawn -D /mnt -- systemctl enable $DISPLAY_MANAGER ;;
-        2) systemd-nspawn -D /mnt -- systemctl enable NetworkManager ;;
     esac
     sleep 1
 }
@@ -1124,7 +999,25 @@ _mount_filesystem() {
     swapon "${FORMAT_DEVICE}2"
 }
 
+_choose_packages() {
+    PACSTRAP_PACKAGES="sudo git curl wget efibootmgr efivar grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
+    PACSTRAP_PACKAGES+="${TEXT_EDITOR} ${DISPLAY_MANAGER} ${GRAPHICS_DRIVER} "
+    case $DESKTOP in
+        'Gnome') PACSTRAP_PACKAGES+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal " ;;
+        'Kde Plasma') PACSTRAP_PACKAGES+="plasma plasma-meta xdg-desktop-portal-kde kde-applications kde-utilities " ;;
+        'XFCE') PACSTRAP_PACKAGES+="xfce4 xfce4-goodies extra/xfce4-terminal " ;;
+    esac
+    if [[ "$AUR_WRAPPER" = "yay" ]]; then
+        PACSTRAP_PACKAGES+="go "
+    fi
+    case $FILE_SYSTEM in
+        "ext4") PACSTRAP_PACKAGES+="e2fsprogs " ;;
+        "btrfs") PACSTRAP_PACKAGES+="btrfs-progs " ;;
+    esac
+}
+
 _run_pacstrap() {
+    _choose_packages
     pacstrap -k /mnt base linux linux-firmware linux-headers $PACKAGES
 }
 
@@ -1163,6 +1056,21 @@ _create_user() {
     if [[ $SUDOER = true ]]; then
         arch-chroot /mnt sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
     fi
+}
+
+_run_systemd() {
+    case $systemd_step in
+        1) prompt="\nEnabling $DISPLAY_MANAGER";;
+        2) prompt="\nEnabling Network Manager";;
+    esac
+    dialog --title "Enabling SystemD Services..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "$prompt" 8 50
+    case $systemd_step in
+        1) systemd-nspawn -D /mnt -- systemctl enable $DISPLAY_MANAGER ;;
+        2) systemd-nspawn -D /mnt -- systemctl enable NetworkManager ;;
+    esac
+    sleep 1
 }
 
 _install_yay() {
@@ -1212,7 +1120,7 @@ clean_up() {
         'yay') rm -rf /mnt/tmp/* && rm -rf /mnt/install_yay.sh ;;
         'paru') rm -rf /mnt/tmp/* && rm -rf /mnt/install_paru.sh ;;
         'none') rm -rf /mnt/tmp/* ;;
-    esac 
+    esac
 }
 
 SUCCESSFUL_FINISH() {
@@ -1241,4 +1149,4 @@ reboot_timer() {
     reboot now --no-wall
 }
 
-init_test
+main
