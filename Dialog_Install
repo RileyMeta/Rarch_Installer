@@ -898,41 +898,17 @@ SYSTEM_INSTALL() {
     pacman_step=1 && _run_pacman_config
     pacman_step=2 && _run_pacman_config
     pacman_step=3 && _run_pacman_config
-    partition_step=1 && _run_drive_partitioning
-    if [[ $SWAP = true ]]; then
-        partition_step=2 && _run_drive_partitioning
-        partition_step=3 && _run_drive_partitioning
-    else
-        partition_step=4 && _run_drive_partitioning
-    fi
-    format_step=1 && _run_mkfs
-    if [[ $SWAP = true ]]; then
-        format_step=2 && _run_mkfs
-    fi
-    format_step=3 && _run_mkfs
-    mounting_step=1 && _run_mount_fs
-    if [[ $SWAP = true ]]; then
-        mounting_step=2 && _run_mount_fs
-    fi
-    mounting_step=3 && _run_mount_fs
+    _run_drive_partitioning
+    _set_partition_type
+    _confirm_format_device
+    _format_drive
+    _mount_filesystem
     _run_pacstrap
     _run_genfstab
-    systemd_step=1 && _run_systemd
-    systemd_step=2 && _run_systemd
-    _set_hostname
-    _set_locale
-    _change_rootpw
-    if [[ $account_created = true ]]; then
-        _create_user
-    fi
-    if [[ $user_pass = true ]]; then
-        _set_userpw
-    fi
-    if [[ $SUDOER = true ]]; then
-        _run_sudoer
-    fi
+    _set_root_PW
     _install_grub
-    _grub_mkconfig
+    _INSTALL_pacman_config
+    _create_user
     case $AUR_WRAPPER in
         'yay') chroot_steps=1 && _install_yay;;
         'paru') chroot_steps=2 && _install_paru;;
@@ -962,8 +938,11 @@ _run_pacman_config() {
     sleep 1
 }
 
+### UNSURE IF THE BELOW IS WORKING. IT DOES NOT SEEM TO BE IN PRACTICE, PLEASE FIX.
+
 _run_drive_partitioning() {
     case $partition_step in
+        0) prompt="\nCreating New GPT Label";;
         1) prompt="\nCreating Boot Partition";;
         2) prompt="\nCreating SWAP Partition";;
         3) prompt="\nCreating Root Partition";;
@@ -972,9 +951,13 @@ _run_drive_partitioning() {
     --colors \
     --infobox "$prompt" 8 50
     case $partition_step in
-        1) echo "g\nn\n\n\n+512MiB\nt\n1\nw" | fdisk $DEVICE ;;
-        2) echo "n\n\n\n+2GiB\nt\n2\nswap\nw" | fdisk $DEVICE ;;
-        3) echo "n\n\n\n\nw" | fdisk $DEVICE ;;
+        0) echo "g\nn" | fdisk $DEVICE ;;
+        1) lsblk $DEVICE && echo "1";;
+        2) lsblk $DEVICE && echo "2";;
+        3) lsblk $DEVICE && echo "3";;
+        # 1) echo "g\nn\n\n\n+512MiB\nt\n1\nw" | fdisk $DEVICE ;;
+        # 2) echo "n\n\n\n+2GiB\nt\n2\nswap\nw" | fdisk $DEVICE ;;
+        # 3) echo "n\n\n\n\nw" | fdisk $DEVICE ;;
     esac
     sleep 1
 }
@@ -1099,114 +1082,86 @@ _set_locale() {
     sleep 1
 }
 
-_change_rootpw() {
-export ROOT_PW_CONFIRM
-    dialog --title "Adjusting Root Account..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "\nSetting Root Password..." 8 50
-    cat << 'EOF' > /mnt/set_root.sh
-#!/bin/bash
-
-set_password() {
-    echo "root:$ROOT_PW_CONFIRM" | chpasswd
+_run_drive_partitioning() {
+    echo "g\nw" | fdisk $DEVICE
+    echo "n\n\n\n+512MiB\nw" | fdisk $DEVICE
+    if [[ $SWAP = true ]]; then
+        echo "n\n\n\n+2GiB\nw" | fdisk $DEVICE
+    fi
+    echo "n\n\n\n\nw" | fdisk $DEVICE
 }
 
-set_password
-EOF
-    chmod +x /mnt/set_root.sh
-    arch-chroot /mnt /set_root.sh
-    rm -rf /mnt/set_root.sh
-    sleep 1
+_set_partition_type() {
+    echo "t\n1\n1\nw" | fdisk $DEVICE
+    if [[ $SWAP = true ]]; then
+        echo "t\n2\nswap\nw" | fdisk $DEVICE
+    fi
 }
 
-_create_user() {
-export USERNAME
-    dialog --title "Setting up the User account..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "\nCreating User Account" 8 50
-    cat << 'EOF' > /mnt/create_user.sh
-#!/bin/bash
-
-create_user() {
-    useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
-}
-create_user
-EOF
-    chmod +x /mnt/create_user.sh
-    arch-chroot /mnt /create_user.sh
-    rm -rf /mnt/create_user.sh
-    sleep 1
+_confirm_format_device() {
+    if [[ $DEVICE == *"NVME"* ]]; then
+        FORMAT_DEVICE="${DEVICE}p"
+    else
+        FORMAT_DEVICE="${DEVICE}"
+    fi
 }
 
-_set_userpw() {
-export user_pass
-    dialog --title "Setting up the User account..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "\nSetting User Password" 8 50
-    cat << 'EOF' > /mnt/set_user.sh
-#!/bin/bash
-
-set_password() {
-    echo "root:$user_pass" | chpasswd
+_format_drive() {
+    _confirm_format_device
+    mkfs.fat -F 32 "${FORMAT_DEVICE}1"
+    if [[ $SWAP = true ]]; then
+        mkswap "${FORMAT_DEVICE}2"
+        mkfs.$FILESYSTEM "${FORMAT_DEVICE}3"
+    else
+        mkfs.$FILESYSTEM "${FORMAT_DEVICE}2"
+    fi
 }
 
-set_password
-EOF
-    chmod +x /mnt/set_user.sh
-    arch-chroot /mnt /set_user.sh
-    rm -rf /mnt/set_user.sh
-    sleep 1
+_mount_filesystem() {
+    mount "${FORMAT_DEVICE}3" /mnt
+    mkdir -p /mnt/boot/efi && mount "${FORMAT_DEVICE}1" /mnt/boot/efi
+    swapon "${FORMAT_DEVICE}2"
 }
 
-_run_sudoer() {
-export USERNAME
-    dialog --title "Setting up the User account..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "\nSetting $USERNAME as sudoer" 8 50
-    cat << 'EOF' > /mnt/sudoer.sh
-#!/bin/bash
-set_sudoer(){
-    sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
-}
-set_sudoer
-EOF
-    chmod +x /mnt/sudoer.sh
-    arch-chroot /mnt /sudoer.sh
-    rm -rf /mnt/sudoer.sh
-    sleep 1
+_run_pacstrap() {
+    pacstrap -k /mnt base linux linux-firmware linux-headers $PACKAGES
 }
 
-_install_grub_dialog() {
-    case $grub_step in
-        1) prompt="Mounting $BOOT_DEVICE to /boot";;
-        2) prompt="Installing Grub to /boot";;
-        3) prompt="Generating Grub Config";;
-    esac
-    dialog --title "Setting Up bootloader..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "\n$prompt" 8 50
+_run_genfstab() {
+    genfstab -U /mnt >> /mnt/etc/fstab 
+}
+
+_set_root_PW() {
+    arch-chroot /mnt echo "root:$ROOT_PW_CONFIRM" | chpasswd
 }
 
 _install_grub() {
-    mount $BOOT_DEVICE /mnt/boot/efi
-    export $BOOT_DEVICE
-    cat << 'EOF' > /mnt/grub_install.sh
+    cat <<'EOF' > /mnt/grub_install
 #!/bin/bash
 
-install_grub(){
-    mount $BOOT_DEVICE /boot/efi
-    grub-install --target=x86_64-efi --bootloader-id=GRUB
+main() {
+    pacman -Sy --noconfirm grub efibootmgr
+    mount /boot/efi
+    grub-install
+    grub-mkconfig -o /boot/grub/grub.cfg
 }
-install_grub
+main
 EOF
-    chmod +x /mnt/grub_install.sh
-    arch-chroot /mnt /grub_install.sh
-    rm -rf /mnt/grub_install.sh
-    sleep 1
+
+    chmod +x /mnt/grub_install
+    arch-chroot /mnt /grub_install
 }
 
-_grub_mkconfig() {
-    grub-mkconfig -o /mnt/boot/grub/grub.cfg
+_INSTALL_pacman_config() {
+    sed -i 's\#ParallelDownloads = 5\ParallelDownloads = 10\g' /mnt/etc/pacman.conf
+}
+
+_create_user() {
+    arch-chroot /mnt useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
+    arch-chroot /mnt echo "root:$user_pass" | chpasswd
+    if [[ $SUDOER = true ]]; then
+        arch-chroot /mnt sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
+    fi
 }
 
 _install_yay() {
