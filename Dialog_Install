@@ -50,6 +50,7 @@ check_dependency() {
     if ! command -v "$1" &> /dev/null; then
         pacman -Sy --noconfirm dialog
     fi
+    main
 }
 
 init_test() {
@@ -1149,4 +1150,4 @@ reboot_timer() {
     reboot now --no-wall
 }
 
-main
+init_test
