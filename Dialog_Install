@@ -62,6 +62,7 @@ init_test() {
         ping -c 1 google.com || _ping_fail
         check_dependency dialog
     fi
+    main
 }
 
 _menu_checks() {
@@ -1240,4 +1241,4 @@ reboot_timer() {
     reboot now --no-wall
 }
 
-main
+init_test
