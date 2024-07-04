@@ -46,13 +46,6 @@ aborted() {
     exit 0
 }
 
-check_dependency() {
-    if ! command -v "$1" &> /dev/null; then
-        pacman -Sy --noconfirm dialog
-    fi
-    main
-}
-
 init_test() {
     total_ram=$(free -m | awk '/^Mem:/{print $2}')
     dialog_test=$(ls /usr/bin/dialog)
@@ -61,8 +54,38 @@ init_test() {
         _ram_fail
     else
         ping -c 1 google.com || _ping_fail
-        check_dependency dialog
     fi
+    pacman -Sy --noconfirm dialog
+    _partition_scripts
+}
+
+_partition_scripts() {
+    cat <<'EOF' > SWAP.sfdisk
+label: gpt
+label-id: F30848F9-1529-4F61-B746-46314BBCD6C5
+device: /dev/nvme0n1
+unit: sectors
+first-lba: 2048
+last-lba: 1000215182
+sector-size: 512
+
+/dev/nvme0n1p1 : start=        2048, size=     1048576, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, uuid=E7ACBCF9-1E82-4F37-9119-D58076018F03
+/dev/nvme0n1p2 : start=     1050624, size=     4194304, type=0657FD6D-A4AB-43C4-84E5-0933C84B4F4F, uuid=7CA8F59D-70BD-46A2-A409-A5D1C4EDE47F
+/dev/nvme0n1p3 : start=     5244928, size=   994969600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=AD8F3729-73A0-42AA-905B-953F0D2E0F8B
+EOF
+    cat <<'EOF' > NO_SWAP.sfdisk
+label: gpt
+label-id: D92B8D5A-4967-4BA0-9291-55D81AFDCF18
+device: /dev/nvme0n1
+unit: sectors
+first-lba: 34
+last-lba: 1953525134
+sector-size: 512
+
+/dev/nvme0n1p1 : start=        2048, size=     2097152, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, uuid=5EE15E4C-24B5-4B1D-98FE-32C7F1DA5CCC
+/dev/nvme0n1p2 : start=     2099200, size=  1951423920, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=E6FAAF4A-EEC3-46AE-8CBB-C4097287FA98
+
+EOF
 }
 
 _menu_checks() {
@@ -959,19 +982,11 @@ _set_locale() {
     sleep 1
 }
 
-_run_drive_partitioning() {
-    echo "g\nw" | fdisk $DEVICE
-    echo "n\n\n\n+512MiB\nw" | fdisk $DEVICE
+_run_drive_partitioning() { # Load and run a default script to partition and 'type' them.
     if [[ $SWAP = true ]]; then
-        echo "n\n\n\n+2GiB\nw" | fdisk $DEVICE
-    fi
-    echo "n\n\n\n\nw" | fdisk $DEVICE
-}
-
-_set_partition_type() {
-    echo "t\n1\n1\nw" | fdisk $DEVICE
-    if [[ $SWAP = true ]]; then
-        echo "t\n2\nswap\nw" | fdisk $DEVICE
+        sfdisk ${DEVICE} < SWAP.sfdisk
+    else
+        sfdisk ${DEVICE} < NO_SWAP.sfdisk
     fi
 }
 
