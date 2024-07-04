@@ -57,6 +57,7 @@ init_test() {
     fi
     pacman -Sy --noconfirm dialog
     _partition_scripts
+    main
 }
 
 _partition_scripts() {
