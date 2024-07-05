@@ -1,0 +1,92 @@
+#!/bin/bash
+
+USERNAME=""
+PASSWORD=""
+ROOT_PASSWORD=""
+FILESYSTEM="ext4"
+SWAP=true
+DEVICE=""
+BOOT_PARTITION="${DEVICE}1" # If drive is NVMe, please add `p` before partition numbers
+SWAP_PARTITION="${DEVICE}2" # If drive is NVMe, please add `p` before partition numbers
+ROOT_PARTITION="${DEVICE}3" # If drive is NVMe, please add `p` before partition numbers
+
+main() {
+    _add_sfdisk
+    if [[ $SWAP = true ]]; then
+        sfdisk ${DEVICE} < SWAP.sfdisk
+    else
+        sfdisk ${DEVICE} < NO_SWAP.sfdisk
+    fi
+    _format_partitions
+    _mount_partitions
+    _pacstrap
+    _genfstab
+    _rootPW
+    _user_account
+    _cleanup
+}
+
+_add_sfdisk() {
+    cat <<'EOF' > SWAP.sfdisk
+label: gpt
+label-id: F30848F9-1529-4F61-B746-46314BBCD6C5
+device: /dev/nvme0n1
+unit: sectors
+first-lba: 2048
+last-lba: 1000215182
+sector-size: 512
+
+/dev/nvme0n1p1 : start=        2048, size=     1048576, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, uuid=E7ACBCF9-1E82-4F37-9119-D58076018F03
+/dev/nvme0n1p2 : start=     1050624, size=     4194304, type=0657FD6D-A4AB-43C4-84E5-0933C84B4F4F, uuid=7CA8F59D-70BD-46A2-A409-A5D1C4EDE47F
+/dev/nvme0n1p3 : start=     5244928, size=   994969600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=AD8F3729-73A0-42AA-905B-953F0D2E0F8B
+EOF
+    cat <<'EOF' > NO_SWAP.sfdisk
+label: gpt
+label-id: D92B8D5A-4967-4BA0-9291-55D81AFDCF18
+device: /dev/nvme0n1
+unit: sectors
+first-lba: 34
+last-lba: 1953525134
+sector-size: 512
+
+/dev/nvme0n1p1 : start=        2048, size=     2097152, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, uuid=5EE15E4C-24B5-4B1D-98FE-32C7F1DA5CCC
+/dev/nvme0n1p2 : start=     2099200, size=  1951423920, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=E6FAAF4A-EEC3-46AE-8CBB-C4097287FA98
+EOF
+}
+
+_format_partitions() {
+    mkfs.fat -F 32 $BOOT_PARTITION
+    mkswap $SWAP_PARTITION
+    yes | mkfs.$FILESYSTEM $ROOT_PARTITION
+}
+
+_mount_partitions() {
+    mkdir -p /mnt/boot/efi/
+    mount $BOOT_PARTITION /mnt/boot/efi/
+    mount $ROOT_PARTITION /mnt/
+    swapon $SWAP_PARTITION
+}
+
+_pacstrap() {
+    pacstrap -K /mnt base base-devel linux linux-headers linux-firmware nano grub efibootmgr
+}
+
+_genfstab() {
+    genfstab -U /mnt > /mnt/etc/fstab
+}
+
+_rootPW() {
+    arch-chroot /mnt echo 'root:${ROOT_PASSWORD}' | chpasswd
+}
+
+_user_account() {
+    arch-chroot /mnt useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
+# Change from /bin/bash to /bin/zsh or fish, etc. Also make sure to install it during pacstrap.
+    arch-chroot /mnt echo '$USERNAME:$PASSWORD' | chpasswd
+}
+
+_cleanup() {
+    rm -rf /mnt/tmp/*
+}
+
+main
