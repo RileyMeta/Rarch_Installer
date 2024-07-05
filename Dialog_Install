@@ -364,7 +364,7 @@ disk_selection() {
 
     if [ -n "$selection" ]; then
         chosen_option=$(echo "$menu_options" | awk -v sel="$selection" '{for(i=1; i<=NF; i+=2) if($i == sel) print $(i+1)}')
-        DEVICE="${chosen_option}"
+        DEVICE="/dev/${chosen_option}"
         STEP_CONFIRM=1
         CONFIRM_MESSAGE=1
         (($required--))
