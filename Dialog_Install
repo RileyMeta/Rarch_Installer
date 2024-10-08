@@ -92,8 +92,8 @@ EOF
 _menu_checks() {
     prompt=""
     case $prompt_argument in
-        1) prompt+="${BOLD}Welcome to My Arch Linux Installer${ENDSTYLE}"
-           prompt+="\nBelow are all the available steps.";;
+        1) prompt+="${BOLD}Welcome to Riley's Arch Installer${ENDSTYLE}"
+           prompt+="\nUse the steps below to configure your system the way you want.";;
         2) prompt+="${BOLD}Please review all your info below.${ENDSTYLE}"
            prompt+="\nIf there are any changes you would like to make, simply type the label name"
            prompt+="\nand you will be taken to that section so you can make changes.";;
@@ -105,6 +105,7 @@ _menu_checks() {
         8) prompt+="${RED}${BOLD}The script cannot conitnue, please set a Hostname.${ENDSTYLE}";;
         98) prompt+="${YELLOW}System Install Aborted at last minute. \n${BOLD}Nothing has been changed.${ENDSTYLE}";;
         99) prompt+="${GREEN}${BOLD}Installation Completed Successfully!${ENDSTYLE}"
+            prompt+="\n${YELLOW}Restart to use your new system${ENDSTYLE}";;
     esac
         LOCALE_LABEL="Locale: ${GREEN}${SELECTED_LOCALE}${ENDSTYLE}"
     if [[ $DEFAULT_LOCALE = true ]]; then
@@ -244,6 +245,25 @@ case $? in
 esac
     done
 }
+
+# DEBUG ITEMS
+# SYSTEM_INSTALL(){
+#     _confirm_format_device
+#     prompt="Locale: ${SELECTED_LOCALE}"
+#     prompt+="\nHostname: ${HOSTNAME}"
+#     prompt+="\nHostname: ${NEW_HOST_NAME}"
+#     prompt+="\nDrive: ${DEVICE}"
+#     prompt+="\nFormat Device: ${FORMAT_DEVICE}"
+#     prompt+="\nFile System = ${FILE_SYSTEM}"
+#     prompt+="\nSWAP = ${SWAP}"
+#     prompt+="\nRoot PW = ${ROOT_PW}"
+#     prompt+="\nUsername = ${USERNAME}"
+#     prompt+="\nText Editor = ${TEXT_EDITOR}"
+#     prompt+="\nDesktop = ${DESKTOP}"
+#     prompt+="\nGraphics Driver = ${GRAPHICS_DRIVER}"
+#     prompt+="\nAUR Wrapper: ${AUR_WRAPPER}"
+#     printf "$prompt"
+# }
 
 locale_selection() {
     options=("af_ZA" "ar_SA" "be_BY" "bg_BG" "bs_BA" "ca_ES" "cs_CZ" "da_DK" "de_DE" "el_GR" "en_GU" "en_US" "es_ES" "et_EE" "eu_ES" "fa_IR" "fi_FI" "fil_P" "fr_BE" "fr_CA" "fr_CH" "fr_FR" "ga_IE" "gl_ES" "he_IL" "hi_IN" "hr_HR" "hu_HU" "id_ID" "is_IS" "it_IT" "ja_JP" "ka_GE" "km_KH" "kn_IN" "ko_KR" "lo_LA" "lt_LT" "mi_NZ" "mi_NZ" "mi_NZ" "mi_NZ" "ml_IN" "mn_MN" "ms_MY" "nl_NL" "nn_NO" "no_NO" "no_NO" "pl_PL" "pt_BR" "pt_PT" "pt_TL" "ro_RO" "ru_RU" "sk_SK" "sl_SI" "so_SO" "sq_AL" "sr_CS" "sv_SE" "ta_IN" "th_TH" "tr_TR" "uk_UA" "vi_VN" "zh_CN" "zh_TW")
@@ -992,7 +1012,7 @@ _run_drive_partitioning() { # Load and run a default script to partition and 'ty
 }
 
 _confirm_format_device() {
-    if [[ $DEVICE == *"NVME"* ]]; then
+    if [[ $DEVICE == *"nvme"* ]]; then
         FORMAT_DEVICE="${DEVICE}p"
     else
         FORMAT_DEVICE="${DEVICE}"
@@ -1145,9 +1165,9 @@ SUCCESSFUL_FINISH() {
     --backtitle "${BACKTITLE}" \
     --colors \
     --title "Installation Successful!" \
-    --yesno "\nWould you like to reboot?" 0 0;
+    --yesno "\nWould you like to chroot into the new system?" 0 0;
     then
-        reboot_timer
+        echo "arch-chroot /mnt"
     else
         prompt_argument=99
         main
