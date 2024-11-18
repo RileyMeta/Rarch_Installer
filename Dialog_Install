@@ -911,17 +911,6 @@ install_confirmation() {
 
 SYSTEM_INSTALL() {
     full_install
-    if [[ $account_created = true ]]; then
-        _create_user
-    fi
-    case $AUR_WRAPPER in
-        'yay') chroot_steps=1 && _install_yay;;
-        'paru') chroot_steps=2 && _install_paru;;
-        'none') : ;;
-    esac
-    if [[ $SYMLINK = true ]]; then
-        _run_symlink
-    fi
     clean_up
     SUCCESSFUL_FINISH
 }
