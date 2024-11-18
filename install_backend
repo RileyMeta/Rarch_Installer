@@ -86,7 +86,7 @@ EOF
 
 _create_user() {
     arch-chroot /mnt useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
-    arch-chroot /mnt echo "$USERNAME:$user_pass" | chpasswd
+    arch-chroot /mnt bash -c "echo '$USERNAME:$user_pass' | chpasswd"
     if [[ $SUDOER = true ]]; then
         arch-chroot /mnt sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
     fi
