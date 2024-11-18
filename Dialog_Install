@@ -337,7 +337,7 @@ disk_selection() {
 
     if [ -n "$selection" ]; then
         chosen_option=$(echo "$menu_options" | awk -v sel="$selection" '{for(i=1; i<=NF; i+=2) if($i == sel) print $(i+1)}')
-        DEVICE="${chosen_option}"
+        DEVICE="/dev/${chosen_option}"
         STEP_CONFIRM=1
         CONFIRM_MESSAGE=1
         (($required--))
@@ -956,6 +956,18 @@ _set_locale() {
     --colors \
     --infobox "echo $SELECTED_LOCALE > /etc/locale.conf" 8 50
     echo $SELECTED_LOCALE > /mnt/etc/locale.conf
+    sleep 1
+}
+
+systemd() {
+    case $systemd_step in
+        1) prompt="\nEnabling $DISPLAY_MANAGER";;
+        2) prompt="\nEnabling Network Manager";;
+    esac
+    dialog --title "Enabling SystemD Services..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "$prompt" 8 50
+    _run_systemd
     sleep 1
 }
 
