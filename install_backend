@@ -64,7 +64,7 @@ _run_genfstab() {
 }
 
 _set_rootpw() {
-    arch-chroot /mnt echo "root:$ROOT_PW_CONFIRM" | chpasswd
+    arch-chroot /mnt bash -c "echo 'root:$ROOT_PW_CONFIRM' | chpasswd"
 }
 
 _install_grub() {
