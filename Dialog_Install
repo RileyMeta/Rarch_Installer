@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source ./install_backend
+
 ENDSTYLE="\Zn"
 BOLD="\Zb"
 BOLD_END="\ZB"
@@ -56,37 +58,7 @@ init_test() {
         ping -c 1 google.com || _ping_fail
     fi
     pacman -Sy --noconfirm dialog
-    _partition_scripts
     main
-}
-
-_partition_scripts() {
-    cat <<'EOF' > SWAP.sfdisk
-label: gpt
-label-id: F30848F9-1529-4F61-B746-46314BBCD6C5
-device: /dev/nvme0n1
-unit: sectors
-first-lba: 2048
-last-lba: 1000215182
-sector-size: 512
-
-/dev/nvme0n1p1 : start=        2048, size=     1048576, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, uuid=E7ACBCF9-1E82-4F37-9119-D58076018F03
-/dev/nvme0n1p2 : start=     1050624, size=     4194304, type=0657FD6D-A4AB-43C4-84E5-0933C84B4F4F, uuid=7CA8F59D-70BD-46A2-A409-A5D1C4EDE47F
-/dev/nvme0n1p3 : start=     5244928, size=   994969600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=AD8F3729-73A0-42AA-905B-953F0D2E0F8B
-EOF
-    cat <<'EOF' > NO_SWAP.sfdisk
-label: gpt
-label-id: D92B8D5A-4967-4BA0-9291-55D81AFDCF18
-device: /dev/nvme0n1
-unit: sectors
-first-lba: 34
-last-lba: 1953525134
-sector-size: 512
-
-/dev/nvme0n1p1 : start=        2048, size=     2097152, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, uuid=5EE15E4C-24B5-4B1D-98FE-32C7F1DA5CCC
-/dev/nvme0n1p2 : start=     2099200, size=  1951423920, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=E6FAAF4A-EEC3-46AE-8CBB-C4097287FA98
-
-EOF
 }
 
 _menu_checks() {
@@ -245,25 +217,6 @@ case $? in
 esac
     done
 }
-
-# DEBUG ITEMS
-# SYSTEM_INSTALL(){
-#     _confirm_format_device
-#     prompt="Locale: ${SELECTED_LOCALE}"
-#     prompt+="\nHostname: ${HOSTNAME}"
-#     prompt+="\nHostname: ${NEW_HOST_NAME}"
-#     prompt+="\nDrive: ${DEVICE}"
-#     prompt+="\nFormat Device: ${FORMAT_DEVICE}"
-#     prompt+="\nFile System = ${FILE_SYSTEM}"
-#     prompt+="\nSWAP = ${SWAP}"
-#     prompt+="\nRoot PW = ${ROOT_PW}"
-#     prompt+="\nUsername = ${USERNAME}"
-#     prompt+="\nText Editor = ${TEXT_EDITOR}"
-#     prompt+="\nDesktop = ${DESKTOP}"
-#     prompt+="\nGraphics Driver = ${GRAPHICS_DRIVER}"
-#     prompt+="\nAUR Wrapper: ${AUR_WRAPPER}"
-#     printf "$prompt"
-# }
 
 locale_selection() {
     options=("af_ZA" "ar_SA" "be_BY" "bg_BG" "bs_BA" "ca_ES" "cs_CZ" "da_DK" "de_DE" "el_GR" "en_GU" "en_US" "es_ES" "et_EE" "eu_ES" "fa_IR" "fi_FI" "fil_P" "fr_BE" "fr_CA" "fr_CH" "fr_FR" "ga_IE" "gl_ES" "he_IL" "hi_IN" "hr_HR" "hu_HU" "id_ID" "is_IS" "it_IT" "ja_JP" "ka_GE" "km_KH" "kn_IN" "ko_KR" "lo_LA" "lt_LT" "mi_NZ" "mi_NZ" "mi_NZ" "mi_NZ" "ml_IN" "mn_MN" "ms_MY" "nl_NL" "nn_NO" "no_NO" "no_NO" "pl_PL" "pt_BR" "pt_PT" "pt_TL" "ro_RO" "ru_RU" "sk_SK" "sl_SI" "so_SO" "sq_AL" "sr_CS" "sv_SE" "ta_IN" "th_TH" "tr_TR" "uk_UA" "vi_VN" "zh_CN" "zh_TW")
@@ -892,7 +845,7 @@ gpu_explain() {
     GPU_MESSAGE+="\n| nvidia   ${GREEN}xf86-video-nouveau${ENDSTYLE}   (All*       )       ${CYAN}mesa${ENDSTYLE}              |"
     GPU_MESSAGE+="\n| intel    ${GREEN}xf86-video-intel${ENDSTYLE}     (Intel iGPU )       ${CYAN}mesa${ENDSTYLE}              |"
     GPU_MESSAGE+="\n| amd      ${GREEN}xf86-video-amdgpu${ENDSTYLE}    (AMD GPUs   )       ${CYAN}mesa${ENDSTYLE}              |"
-    GPU_MESSAGE+="\n| mesa     *misc*               *ALL*               *is the backend*  |"
+    GPU_MESSAGE+="\n| mesa     *misc*               *ALL*               *is the backend*                                       |"
     GPU_MESSAGE+="\n${BOLD}=======================================================================${BOLD_END}"
     dialog --clear \
     --backtitle "$BACKTITLE" \
@@ -957,21 +910,7 @@ install_confirmation() {
 }
 
 SYSTEM_INSTALL() {
-    pacman_step=1 && _run_pacman_config
-    pacman_step=2 && _run_pacman_config
-    pacman_step=3 && _run_pacman_config
-    _run_drive_partitioning
-    _set_partition_type
-    _format_drive
-    _mount_filesystem
-    _run_pacstrap
-    _run_genfstab
-    _set_root_PW
-    _install_grub
-    _run_systemd
-    _set_hostname
-    _set_locale
-    _INSTALL_pacman_config # Change Pacman.conf on New Install
+    full_install
     if [[ $account_created = true ]]; then
         _create_user
     fi
@@ -1020,193 +959,6 @@ _set_locale() {
     sleep 1
 }
 
-_run_drive_partitioning() { # Load and run a default script to partition and 'type' them.
-    _run_clear_gpt
-    _run_boot_format
-    _run_root_format
-}
-
-_run_clear_gpt() {
-    cat <<EOF | fdisk ${DEVICE}
-d
-1
-d
-2
-d
-3
-g
-w
-EOF
-}
-
-_run_boot_format() {
-    cat <<EOF | fdisk ${DEVICE}
-n
-
-
-+512MiB
-yes
-w
-EOF
-}
-
-_run_root_format() {
-    cat <<EOF | fdisk ${DEVICE}
-n
-
-
-w
-EOF
-}
-
-_confirm_format_device() {
-    if [[ $DEVICE == *"nvme"* ]]; then
-        FORMAT_DEVICE="${DEVICE}p"
-    else
-        FORMAT_DEVICE="${DEVICE}"
-    fi
-}
-
-_format_drive() {
-    _confirm_format_device
-    mkfs.fat -F 32 "${FORMAT_DEVICE}1"
-    if [[ "$FILE_SYSTEM" = "btrfs" ]]; then
-        mkfs.$FILE_SYSTEM -f "${FORMAT_DEVICE}2"
-    else
-        yes | mkfs.ext4 "${FORMAT_DEVICE}2"
-    fi
-}
-
-_mount_filesystem() {
-    mount "${FORMAT_DEVICE}3" /mnt
-    mkdir -p /mnt/boot/efi && mount "${FORMAT_DEVICE}1" /mnt/boot/efi
-    # swapon "${FORMAT_DEVICE}2"
-}
-
-_choose_packages() {
-    PACSTRAP_PACKAGES="sudo git curl wget efibootmgr efivar grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
-    PACSTRAP_PACKAGES+="${TEXT_EDITOR} ${DISPLAY_MANAGER} ${GRAPHICS_DRIVER} "
-    case $DESKTOP in
-        'Gnome') PACSTRAP_PACKAGES+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal " ;;
-        'Kde Plasma') PACSTRAP_PACKAGES+="plasma plasma-meta xdg-desktop-portal-kde kde-applications kde-utilities " ;;
-        'XFCE') PACSTRAP_PACKAGES+="xfce4 xfce4-goodies extra/xfce4-terminal " ;;
-    esac
-    if [[ "$AUR_WRAPPER" = "yay" ]]; then
-        PACSTRAP_PACKAGES+="go "
-    fi
-    case $FILE_SYSTEM in
-        "ext4") PACSTRAP_PACKAGES+="e2fsprogs " ;;
-        "btrfs") PACSTRAP_PACKAGES+="btrfs-progs " ;;
-    esac
-}
-
-_run_pacstrap() {
-    _choose_packages
-    pacstrap -k /mnt base linux linux-firmware linux-headers $PACKAGES
-}
-
-_run_genfstab() {
-    genfstab -U /mnt >> /mnt/etc/fstab 
-}
-
-_set_root_PW() {
-    arch-chroot /mnt echo "root:$ROOT_PW_CONFIRM" | chpasswd
-}
-
-_install_grub() {
-    cat <<'EOF' > /mnt/grub_install
-#!/bin/bash
-
-main() {
-    pacman -Sy --noconfirm grub efibootmgr
-    mount /boot/efi
-    grub-install
-    grub-mkconfig -o /boot/grub/grub.cfg
-}
-main
-EOF
-
-    chmod +x /mnt/grub_install
-    arch-chroot /mnt /grub_install
-}
-
-_INSTALL_pacman_config() {
-    sed -i 's\#ParallelDownloads = 5\ParallelDownloads = 10\g' /mnt/etc/pacman.conf
-}
-
-_create_user() {
-    arch-chroot /mnt useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
-    arch-chroot /mnt echo "root:$user_pass" | chpasswd
-    if [[ $SUDOER = true ]]; then
-        arch-chroot /mnt sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
-    fi
-}
-
-_run_systemd() {
-    case $systemd_step in
-        1) prompt="\nEnabling $DISPLAY_MANAGER";;
-        2) prompt="\nEnabling Network Manager";;
-    esac
-    dialog --title "Enabling SystemD Services..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "$prompt" 8 50
-    case $systemd_step in
-        1) systemd-nspawn -D /mnt -- systemctl enable $DISPLAY_MANAGER ;;
-        2) systemd-nspawn -D /mnt -- systemctl enable NetworkManager ;;
-    esac
-    sleep 1
-}
-
-_install_yay() {
-export USERNAME
-    cat << 'EOF' > /mnt/install_yay.sh
-#!/bin/bash
-_install_yay() {
-    cd /tmp
-    git clone https://aur.archlinux.org/yay.git
-    chown -R $USERNAME yay/
-    cd yay/
-    su -c "makepkg" $USERNAME
-    pacman -U --noconfirm yay-*.pkg.tar.zst
-}
-_install_yay
-EOF
-    chmod +x /mnt/install_yay.sh
-    arch-chroot /mnt /install_yay.sh
-    rm -rf /mnt/install_yay.sh
-}
-
-_install_paru() {
-export USERNAME
-    cat << 'EOF' > /mnt/install_paru.sh
-#!/bin/bash
-install_paru() {
-    cd /tmp
-    git clone https://aur.archlinux.org/paru.git
-    chown -R $USERNAME paru/
-    cd paru/
-    su -c "makepkg" $USERNAME
-    pacman -U --noconfirm paru-*.pkg.tar.zst
-}
-install_paru
-EOF
-    chmod +x /mnt/install_paru.sh
-    arch-chroot /mnt /install_paru.sh
-    rm -rf /mnt/install_paru.sh
-}
-
-_run_symlink() {
-    ln -sf /mnt/usr/bin/$TEXT_EDITOR /mnt/usr/bin/vi
-}
-
-clean_up() {
-    case $AUR_WRAPPER in
-        'yay') rm -rf /mnt/tmp/* && rm -rf /mnt/install_yay.sh ;;
-        'paru') rm -rf /mnt/tmp/* && rm -rf /mnt/install_paru.sh ;;
-        'none') rm -rf /mnt/tmp/* ;;
-    esac
-}
-
 SUCCESSFUL_FINISH() {
     if dialog --clear \
     --backtitle "${BACKTITLE}" \
@@ -1219,18 +971,6 @@ SUCCESSFUL_FINISH() {
         prompt_argument=99
         main
     fi
-}
-
-reboot_timer() {
-    for i in {5..1}; do
-        clear
-        reboot_prompt="The system will restart in ${i}"
-        reboot_prompt+="\n\nPress Ctrl+C to cancel"
-        echo -e "${reboot_prompt}"
-        sleep 1
-    done
-    umount -R /mnt
-    reboot now --no-wall
 }
 
 init_test
