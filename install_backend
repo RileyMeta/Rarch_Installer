@@ -2,12 +2,26 @@
 
 full_install() {
     _partition_drives
-    _format_partitions
+    format_partitions
     _mount_filesystem
     _run_pacstrap
     _run_genfstab
     _set_rootpw
     _install_grub
+    if [[ $account_created == true ]]; then
+        _create_user
+    fi
+    case $AUR_WRAPPER in
+        'yay') _install_yay;;
+        'paru') _install_paru;;
+        'none') : ;;
+    esac
+    if [[ $SYMLINK = true ]]; then
+        _run_symlink
+    fi
+    _run_systemd
+    _set_hostname
+    _set_locale
 }
 
 _partition_drives() {
@@ -110,18 +124,8 @@ _create_user() {
 }
 
 _run_systemd() {
-    case $systemd_step in
-        1) prompt="\nEnabling $DISPLAY_MANAGER";;
-        2) prompt="\nEnabling Network Manager";;
-    esac
-    dialog --title "Enabling SystemD Services..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "$prompt" 8 50
-    case $systemd_step in
-        1) systemd-nspawn -D /mnt -- systemctl enable $DISPLAY_MANAGER ;;
-        2) systemd-nspawn -D /mnt -- systemctl enable NetworkManager ;;
-    esac
-    sleep 1
+    systemd-nspawn -D /mnt -- systemctl enable $DISPLAY_MANAGER
+    systemd-nspawn -D /mnt -- systemctl enable NetworkManager
 }
 
 _set_hostname() {
