@@ -8,7 +8,6 @@ full_install() {
     _run_genfstab
     _set_rootpw
     _install_grub
-    _create_user
 }
 
 _partition_drives() {
@@ -54,8 +53,26 @@ _mount_filesystem() {
     mount "${FORMAT_DRIVE}1" /mnt/boot/efi
 }
 
+_choose_packages() {
+    PACSTRAP_PACKAGES="sudo git curl wget efibootmgr efivar grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
+    PACSTRAP_PACKAGES+="${TEXT_EDITOR} ${DISPLAY_MANAGER} ${GRAPHICS_DRIVER} "
+    case $DESKTOP in
+        'Gnome') PACSTRAP_PACKAGES+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal " ;;
+        'Kde Plasma') PACSTRAP_PACKAGES+="plasma plasma-meta xdg-desktop-portal-kde kde-applications kde-utilities " ;;
+        'XFCE') PACSTRAP_PACKAGES+="xfce4 xfce4-goodies extra/xfce4-terminal " ;;
+    esac
+    if [[ "$AUR_WRAPPER" = "yay" ]]; then
+        PACSTRAP_PACKAGES+="go "
+    fi
+    case $FILE_SYSTEM in
+        "ext4") PACSTRAP_PACKAGES+="e2fsprogs " ;;
+        "btrfs") PACSTRAP_PACKAGES+="btrfs-progs " ;;
+    esac
+}
+
 _run_pacstrap() {
-    packages="base base-devel linux linux-firmware linux-headers sof-firmware ${TEXT_EDITOR} grub efibootmgr"
+    _choose_packages
+    packages="base base-devel linux linux-firmware linux-headers sof-firmware ${PACSTRAP_PACKAGES} grub efibootmgr"
     pacstrap -K /mnt $packages
 }
 
@@ -64,7 +81,7 @@ _run_genfstab() {
 }
 
 _set_rootpw() {
-    arch-chroot /mnt bash -c "echo 'root:$ROOT_PW_CONFIRM' | chpasswd"
+    arch-chroot /mnt echo "root:$ROOT_PW_CONFIRM" | chpasswd
 }
 
 _install_grub() {
@@ -86,8 +103,78 @@ EOF
 
 _create_user() {
     arch-chroot /mnt useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
-    arch-chroot /mnt bash -c "echo '$USERNAME:$user_pass' | chpasswd"
+    arch-chroot /mnt echo "$USERNAME:$user_pass" | chpasswd
     if [[ $SUDOER = true ]]; then
         arch-chroot /mnt sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
     fi
+}
+
+_run_systemd() {
+    case $systemd_step in
+        1) prompt="\nEnabling $DISPLAY_MANAGER";;
+        2) prompt="\nEnabling Network Manager";;
+    esac
+    dialog --title "Enabling SystemD Services..." --backtitle "${BACKTITLE}" \
+    --colors \
+    --infobox "$prompt" 8 50
+    case $systemd_step in
+        1) systemd-nspawn -D /mnt -- systemctl enable $DISPLAY_MANAGER ;;
+        2) systemd-nspawn -D /mnt -- systemctl enable NetworkManager ;;
+    esac
+    sleep 1
+}
+
+_set_hostname() {
+    echo "${HOST_NAME}" > /mnt/etc/hostname 
+}
+
+_set_locale() {
+    echo "${SELECTED_LOCALE}" > /mnt/etc/locale
+}
+
+
+_install_yay() {
+export USERNAME
+    cat << 'EOF' > /mnt/chroot/install_yay.sh
+#!/bin/bash
+_install_yay() {
+    cd /tmp
+    git clone https://aur.archlinux.org/yay.git
+    chown -R $USERNAME yay/
+    cd yay/
+    su -c "makepkg" $USERNAME
+    pacman -U --noconfirm yay-*.pkg.tar.zst
+}
+_install_yay
+EOF
+    chmod +x /mnt/chroot/install_yay.sh
+    arch-chroot /mnt /chroot/install_yay.sh
+    rm -rf /mnt/chroot/install_yay.sh
+}
+
+_install_paru() {
+export USERNAME
+    cat << 'EOF' > /mnt/chroot/install_paru.sh
+#!/bin/bash
+install_paru() {
+    cd /tmp
+    git clone https://aur.archlinux.org/paru.git
+    chown -R $USERNAME paru/
+    cd paru/
+    su -c "makepkg" $USERNAME
+    pacman -U --noconfirm paru-*.pkg.tar.zst
+}
+install_paru
+EOF
+    chmod +x /mnt/chroot/install_paru.sh
+    arch-chroot /mnt /chroot/install_paru.sh
+    rm -rf /mnt/chroot/install_paru.sh
+}
+
+_run_symlink() {
+    ln -sf /mnt/usr/bin/$TEXT_EDITOR /mnt/usr/bin/vi
+}
+
+clean_up() {
+    rm -rf /mnt/chroot
 }
