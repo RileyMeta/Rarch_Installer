@@ -384,7 +384,7 @@ disk_selection() {
 
     if [ -n "$selection" ]; then
         chosen_option=$(echo "$menu_options" | awk -v sel="$selection" '{for(i=1; i<=NF; i+=2) if($i == sel) print $(i+1)}')
-        DEVICE="/dev/${chosen_option}"
+        DEVICE="${chosen_option}"
         STEP_CONFIRM=1
         CONFIRM_MESSAGE=1
         (($required--))
@@ -400,11 +400,28 @@ _drive_confirmation() {
     --colors \
     --title "Disk Confirmation" \
     --yesno "Are you sure you would like to use ${CYAN}${DEVICE}${ENDSTYLE}?" 0 0 ; then
-        default_item=4
-        main
+        _drive_partitioning
     else
         DEVICE=""
         disk_selection
+    fi
+}
+
+_drive_partitioning() {
+    partition_size=$(dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --colors \
+    --title "Disk Partitioning" \
+    --inputbox "A normal linux install will have 2 or 3 partitions \
+    \n[Boot] Roughly 1GB\n[Swap] If you are planning on using Suspend, please set this to the same as your ram\n[Root] The home of your drive \
+    \n[Home] *Optional* Not recommended for new users. Allows the user to save their home folder to a second drive or dedicated partition." 8 40 \
+    --output-fd 1)
+
+    if [ $? -eq 0 ]; then
+        default_item=4
+        main
+    else
+        main
     fi
 }
 
@@ -647,19 +664,19 @@ _confirm_user_pw() {
 texteditor() {
     while true; do
     texteditorOptions=(
-    1 "Vi"
-    2 "Vim"
-    3 "NeoVim"
-    4 "Nano"
-    5 "Emacs"
-    6 "None"
+    1 "Vi" on \
+    2 "Vim" off \
+    3 "NeoVim" off \
+    4 "Nano" off \
+    5 "Emacs" off \
+    6 "None" off
 )
 result=$(dialog --clear --title "Text Editor Selection" \
     --backtitle "$BACKTITLE" \
     --colors \
     --cancel-label "BACK" \
     --stdout \
-    --menu "\nPlease select your preferred console text editor" 0 0 6 "${texteditorOptions[@]}")
+    --checklist "\nPlease select your preferred console text editor" 0 0 6 "${texteditorOptions[@]}")
 
 case $? in
     0)  case $result in
@@ -1004,11 +1021,42 @@ _set_locale() {
 }
 
 _run_drive_partitioning() { # Load and run a default script to partition and 'type' them.
-    if [[ $SWAP = true ]]; then
-        sfdisk ${DEVICE} < SWAP.sfdisk
-    else
-        sfdisk ${DEVICE} < NO_SWAP.sfdisk
-    fi
+    _run_clear_gpt
+    _run_boot_format
+    _run_root_format
+}
+
+_run_clear_gpt() {
+    cat <<EOF | fdisk ${DEVICE}
+d
+1
+d
+2
+d
+3
+g
+w
+EOF
+}
+
+_run_boot_format() {
+    cat <<EOF | fdisk ${DEVICE}
+n
+
+
++512MiB
+yes
+w
+EOF
+}
+
+_run_root_format() {
+    cat <<EOF | fdisk ${DEVICE}
+n
+
+
+w
+EOF
 }
 
 _confirm_format_device() {
@@ -1022,18 +1070,17 @@ _confirm_format_device() {
 _format_drive() {
     _confirm_format_device
     mkfs.fat -F 32 "${FORMAT_DEVICE}1"
-    if [[ $SWAP = true ]]; then
-        mkswap "${FORMAT_DEVICE}2"
-        mkfs.$FILESYSTEM "${FORMAT_DEVICE}3"
+    if [[ "$FILE_SYSTEM" = "btrfs" ]]; then
+        mkfs.$FILE_SYSTEM -f "${FORMAT_DEVICE}2"
     else
-        mkfs.$FILESYSTEM "${FORMAT_DEVICE}2"
+        yes | mkfs.ext4 "${FORMAT_DEVICE}2"
     fi
 }
 
 _mount_filesystem() {
     mount "${FORMAT_DEVICE}3" /mnt
     mkdir -p /mnt/boot/efi && mount "${FORMAT_DEVICE}1" /mnt/boot/efi
-    swapon "${FORMAT_DEVICE}2"
+    # swapon "${FORMAT_DEVICE}2"
 }
 
 _choose_packages() {
