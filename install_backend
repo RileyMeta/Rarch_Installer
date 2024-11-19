@@ -11,6 +11,7 @@ full_install() {
     if [[ $account_created == true ]]; then
         _create_user
     fi
+    _install_packages
     case $AUR_WRAPPER in
         'yay') _install_yay;;
         'paru') _install_paru;;
@@ -67,13 +68,18 @@ _mount_filesystem() {
     mount "${FORMAT_DRIVE}1" /mnt/boot/efi
 }
 
-_choose_packages() {
+_run_pacstrap() {
+    packages="base base-devel linux linux-firmware linux-headers sof-firmware grub efibootmgr git curl wget"
+    pacstrap -K /mnt $packages
+}
+
+_install_packages() {
     PACSTRAP_PACKAGES="sudo git curl wget efibootmgr efivar grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
     PACSTRAP_PACKAGES+="${TEXT_EDITOR} ${DISPLAY_MANAGER} ${GRAPHICS_DRIVER} "
     case $DESKTOP in
-        'Gnome') PACSTRAP_PACKAGES+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal " ;;
-        'Kde Plasma') PACSTRAP_PACKAGES+="plasma plasma-meta xdg-desktop-portal-kde kde-applications kde-utilities " ;;
-        'XFCE') PACSTRAP_PACKAGES+="xfce4 xfce4-goodies extra/xfce4-terminal " ;;
+        'Gnome') PACSTRAP_PACKAGES+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal ${DISPLAY_MANAGER} " ;;
+        'Kde Plasma') PACSTRAP_PACKAGES+="plasma plasma-meta xdg-desktop-portal-kde kde-applications kde-utilities ${DISPLAY_MANAGER} " ;;
+        'XFCE') PACSTRAP_PACKAGES+="xfce4 xfce4-goodies extra/xfce4-terminal ${DISPLAY_MANAGER} " ;;
     esac
     if [[ "$AUR_WRAPPER" = "yay" ]]; then
         PACSTRAP_PACKAGES+="go "
@@ -82,19 +88,17 @@ _choose_packages() {
         "ext4") PACSTRAP_PACKAGES+="e2fsprogs " ;;
         "btrfs") PACSTRAP_PACKAGES+="btrfs-progs " ;;
     esac
-}
 
-_run_pacstrap() {
-    _choose_packages
-    packages="base base-devel linux linux-firmware linux-headers sof-firmware ${PACSTRAP_PACKAGES} grub efibootmgr"
-    pacstrap -K /mnt $packages
+    arch-chroot /mnt pacman -Sy --noconfirm $PACSTRAP_PACKAGES
 }
 
 _run_genfstab() {
+    echo "Generating FSTab"
     genfstab -U /mnt >> /mnt/etc/fstab
 }
 
 _set_rootpw() {
+    echo "Setting Root Password"
     arch-chroot /mnt echo "root:$ROOT_PW_CONFIRM" | chpasswd
 }
 
@@ -116,9 +120,12 @@ EOF
 }
 
 _create_user() {
+    echo "Creating User"
     arch-chroot /mnt useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
-    arch-chroot /mnt echo "$USERNAME:$user_pass" | chpasswd
+    echo "Applying User Password"
+    arch-chroot /mnt echo '$USERNAME:$user_pass' | chpasswd
     if [[ $SUDOER = true ]]; then
+        echo "Adding User to Sudoers"
         arch-chroot /mnt sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
     fi
 }
@@ -129,10 +136,12 @@ _run_systemd() {
 }
 
 _set_hostname() {
+    echo -e "Setting Hostname\n>> echo '${HOSTNAME}' > /etc/hostname"
     echo "${HOST_NAME}" > /mnt/etc/hostname 
 }
 
 _set_locale() {
+    echo -e "Setting Locale\n>> echo '${SELECTED_LOCALE}' > /etc/locale"
     echo "${SELECTED_LOCALE}" > /mnt/etc/locale
 }
 
@@ -176,7 +185,8 @@ EOF
 }
 
 _run_symlink() {
-    ln -sf /mnt/usr/bin/$TEXT_EDITOR /mnt/usr/bin/vi
+    echo -e "Symlinking ${TEXT_EDITOR} Text Editor to vi"
+    arch-chroot /mnt ln -sf /mnt/usr/bin/$TEXT_EDITOR /mnt/usr/bin/vi
 }
 
 clean_up() {
