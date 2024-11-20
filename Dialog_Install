@@ -20,6 +20,7 @@ BACKTITLE="Rarch Installer"
 
 # Default Values
 DEVICE=""
+SWAP=false
 FILE_SYSTEM=""
 GRAPHICS_DRIVER=""
 DESKTOP=""
@@ -609,9 +610,9 @@ text_editor_symlink() {
     \n\nThis would allow you to work with apps that require vi (like Visudo)." 0 0;
     then
         SYMLINK=true
-        main
+        main_menu
     else
-        main
+        main_menu
     fi
 }
 
@@ -880,7 +881,7 @@ SUCCESSFUL_FINISH() {
         echo "arch-chroot /mnt"
     else
         prompt_argument=99
-        main
+        main_menu
     fi
 }
 
