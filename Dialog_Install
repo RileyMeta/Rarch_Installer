@@ -360,24 +360,6 @@ _drive_confirmation() {
     fi
 }
 
-_drive_partitioning() {
-    partition_size=$(dialog --clear \
-    --backtitle "${BACKTITLE}" \
-    --colors \
-    --title "Disk Partitioning" \
-    --inputbox "A normal linux install will have 2 or 3 partitions \
-    \n[Boot] Roughly 1GB\n[Swap] If you are planning on using Suspend, please set this to the same as your ram\n[Root] The home of your drive \
-    \n[Home] *Optional* Not recommended for new users. Allows the user to save their home folder to a second drive or dedicated partition." 8 40 \
-    --output-fd 1)
-
-    if [ $? -eq 0 ]; then
-        default_item=4
-        main
-    else
-        main
-    fi
-}
-
 hostname() {
     local NEW_HOST_NAME
     NEW_HOST_NAME=$(dialog --clear \
@@ -492,6 +474,7 @@ _confirm_root_pw() {
         main
     else
         if [[ $ROOT_PW_CONFIRM = $ROOT_PW ]]; then
+            ROOT_PW_CONFIRM="${ROOT_PW}"
             root_pass_set=true
             default_item=7
             (($required--))
@@ -786,32 +769,32 @@ result=$(dialog --clear --title "Graphics Driver Selection" \
 
 case $? in
     0)  case $result in
-            1) GRAPHICS_DRIVER="nvidia-dkms nvidia-utils"
+            1) GRAPHICS_DRIVER="Nvidia Proprietary"
                 GRAPHICS_PROMPT=1
                 default_item=11
                 main
                 break ;;
-            2) GRAPHICS_DRIVER="nvidia-open-dkms"
+            2) GRAPHICS_DRIVER="Nvidia Open"
                 GRAPHICS_PROMPT=2
                 default_item=11
                 main
                 break ;;
-            3) GRAPHICS_DRIVER="vulkan-nouveau mesa"
+            3) GRAPHICS_DRIVER="vulkan-nouveau"
                 GRAPHICS_PROMPT=3
                 default_item=11
                 main
                 break ;;
-            4) GRAPHICS_DRIVER="xf86-video-nouveau mesa"
+            4) GRAPHICS_DRIVER="xf86-nouveau"
                 GRAPHICS_PROMPT=4
                 default_item=11
                 main
                 break ;;
-            5) GRAPHICS_DRIVER="xf86-video-intel mesa"
+            5) GRAPHICS_DRIVER="Intel"
                 GRAPHICS_PROMPT=5
                 default_item=11
                 main
                 break ;;
-            6) GRAPHICS_DRIVER="xf86-video-amdgpu mesa"
+            6) GRAPHICS_DRIVER="AMD GPU"
                 GRAPHICS_PROMPT=6
                 default_item=11
                 main
@@ -902,62 +885,11 @@ install_confirmation() {
     --no-label "NO, TAKE ME BACK" \
     --yesno "\nAre you sure you would like to continue with the Install?
     \n\n${RED}${UNDERLINE}This will completely erase all data on ${BOLD}$DEVICE${ENDSTYLE}" 0 0 ; then
-        SYSTEM_INSTALL
+        full_install && SUCCESSFUL_FINISH
     else
         prompt_argument=98
         main
     fi
-}
-
-SYSTEM_INSTALL() {
-    full_install
-    clean_up
-    SUCCESSFUL_FINISH
-}
-
-_run_pacman_config() {
-    case $pacman_step in
-        1) prompt="\nEnabling Parallel Downloads";;
-        2) prompt="\nEnabling Colorful Output";;
-        3) prompt="\nEnabling Verbose Package lists";;
-    esac
-    dialog --title "Configuring Pacman..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "$prompt" 8 50
-    case $pacman_step in
-        1) sed -i 's/#ParallelDownloads = 5/ParallelDownloads = 10/g' /etc/pacman.conf ;;
-        2) sed -i 's/#Color/Color/g' /etc/pacman.conf ;;
-        3) sed -i 's/#VerbosePkgLists/VerbosePkgLists/g' /etc/pacman.conf ;;
-    esac
-    sleep 1
-}
-
-_set_hostname() {
-    dialog --title "Assigning Hostname..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "echo $NEW_HOST_NAME > /etc/hostname" 8 50
-    echo $NEW_HOST_NAME > /mnt/etc/hostname
-    sleep 1
-}
-
-_set_locale() {
-    dialog --title "Assigning Locale..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "echo $SELECTED_LOCALE > /etc/locale.conf" 8 50
-    echo $SELECTED_LOCALE > /mnt/etc/locale.conf
-    sleep 1
-}
-
-systemd() {
-    case $systemd_step in
-        1) prompt="\nEnabling $DISPLAY_MANAGER";;
-        2) prompt="\nEnabling Network Manager";;
-    esac
-    dialog --title "Enabling SystemD Services..." --backtitle "${BACKTITLE}" \
-    --colors \
-    --infobox "$prompt" 8 50
-    _run_systemd
-    sleep 1
 }
 
 SUCCESSFUL_FINISH() {
