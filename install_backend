@@ -74,13 +74,22 @@ _run_pacstrap() {
 }
 
 _install_packages() {
-    PACSTRAP_PACKAGES="sudo git curl wget efibootmgr efivar grub dosfstools xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
-    PACSTRAP_PACKAGES+="${TEXT_EDITOR} ${DISPLAY_MANAGER} ${GRAPHICS_DRIVER} "
+    PACSTRAP_PACKAGES="sudo git curl wget efibootmgr efivar grub dosfstools ${TEXT_EDITOR} "
+    PACSTRAP_PACKAGES+="xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
+    case $GRAPHICS_DRIVER in
+        'Nvidia Proprietary') PACSTRAP_PACKAGES+="nvidia-dkms egl-wayland lib32-nvidia-utils lib32-opencl-nvidia nvidia-settings opencl-nvidia nvidia-utils ";;
+        'Nvidia Open') PACSTRAP_PACKAGES+="nvidia-open-dkms egl-wayland lib32-nvidia-utils lib32-opencl-nvidia nvidia-settings opencl-nvidia nvidia-utils ";;
+        'vulkan-nouveau') PACSTRAP_PACKAGES+="vulkan-nouveau mesa ";;
+        'xf86-nouveau') PACSTRAP_PACKAGES+="xf86-video-nouveau mesa ";;
+        'Intel') PACSTRAP_PACKAGES+="xf86-video-intel mesa ";;
+        'AMD GPU') PACSTRAP_PACKAGES+="xf86-video-amdgpu mesa ";;
+        'mesa') PACSTRAP_PACKAGES+="mesa ";;
+    esac
     case $DESKTOP in
         'Gnome') PACSTRAP_PACKAGES+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal ${DISPLAY_MANAGER} " ;;
         'Kde Plasma') PACSTRAP_PACKAGES+="plasma plasma-meta xdg-desktop-portal-kde kde-applications kde-utilities ${DISPLAY_MANAGER} " ;;
         'XFCE') PACSTRAP_PACKAGES+="xfce4 xfce4-goodies extra/xfce4-terminal ${DISPLAY_MANAGER} " ;;
-    esac
+    esac 
     if [[ "$AUR_WRAPPER" = "yay" ]]; then
         PACSTRAP_PACKAGES+="go "
     fi
@@ -103,7 +112,7 @@ _set_rootpw() {
 }
 
 _install_grub() {
-    mkdir /mnt/chroot
+    mkdir -v /mnt/chroot
     cat <<EOF > /mnt/chroot/grub_install
 #!/bin/bash
 
