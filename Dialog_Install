@@ -353,7 +353,7 @@ _drive_confirmation() {
     --colors \
     --title "Disk Confirmation" \
     --yesno "Are you sure you would like to use ${CYAN}${DEVICE}${ENDSTYLE}?" 0 0 ; then
-        _drive_partitioning
+        main
     else
         DEVICE=""
         disk_selection
