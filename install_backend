@@ -73,6 +73,33 @@ _run_pacstrap() {
     pacstrap -K /mnt $packages
 }
 
+_run_genfstab() {
+    echo "Generating FSTab"
+    genfstab -U /mnt >> /mnt/etc/fstab
+}
+
+_set_rootpw() {
+    echo "Setting Root Password"
+    arch-chroot /mnt echo "root:$ROOT_PW" | chpasswd
+}
+
+_install_grub() {
+    mkdir -v /mnt/chroot
+    cat <<EOF > /mnt/chroot/grub_install
+#!/bin/bash
+
+main() {
+    mount /boot/efi
+    grub-install --efi-directory=/boot/efi --target=x86_64-efi --bootloader-id=GRUB --removable
+    grub-mkconfig -o /boot/grub/grub.cfg
+}
+main
+EOF
+
+    chmod a+x /mnt/chroot/grub_install
+    arch-chroot /mnt /chroot/grub_install
+}
+
 _install_packages() {
     PACSTRAP_PACKAGES="sudo git curl wget efibootmgr efivar grub dosfstools ${TEXT_EDITOR} "
     PACSTRAP_PACKAGES+="xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
@@ -101,33 +128,6 @@ _install_packages() {
     arch-chroot /mnt pacman -Sy --noconfirm $PACSTRAP_PACKAGES
 }
 
-_run_genfstab() {
-    echo "Generating FSTab"
-    genfstab -U /mnt >> /mnt/etc/fstab
-}
-
-_set_rootpw() {
-    echo "Setting Root Password"
-    arch-chroot /mnt echo "root:$ROOT_PW_CONFIRM" | chpasswd
-}
-
-_install_grub() {
-    mkdir -v /mnt/chroot
-    cat <<EOF > /mnt/chroot/grub_install
-#!/bin/bash
-
-main() {
-    mount /boot/efi
-    grub-install --efi-directory=/boot/efi --target=x86_64-efi --bootloader-id=GRUB --removable
-    grub-mkconfig -o /boot/grub/grub.cfg
-}
-main
-EOF
-
-    chmod a+x /mnt/chroot/grub_install
-    arch-chroot /mnt /chroot/grub_install
-}
-
 _create_user() {
     echo "Creating User"
     arch-chroot /mnt useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
@@ -145,8 +145,8 @@ _run_systemd() {
 }
 
 _set_hostname() {
-    echo -e "Setting Hostname\n>> echo '${HOSTNAME}' > /etc/hostname"
-    echo "${HOST_NAME}" > /mnt/etc/hostname 
+    echo -e "Setting Hostname\n>> echo '${NEW_HOST_NAME}' > /etc/hostname"
+    echo "${NEW_HOST_NAME}" > /mnt/etc/hostname 
 }
 
 _set_locale() {
