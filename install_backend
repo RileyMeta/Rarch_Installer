@@ -2,12 +2,13 @@
 
 full_install() {
     _partition_drives
-    format_partitions
-    _mount_filesystem
+    _format_partitions
+    _mount_drives
     _run_pacstrap
     _run_genfstab
     _set_rootpw
     _install_grub
+
     if [[ $account_created == true ]]; then
         _create_user
     fi
@@ -26,12 +27,42 @@ full_install() {
 }
 
 _partition_drives() {
-    cat <<EOF | fdisk ${DEVICE}
+    BOOT_SIZE=512
+    SWAP_SIZE=4096
+    format_boot="+${BOOT_SIZE}MiB"
+    format_swap="+${SWAP_SIZE}MiB"
+
+    if [[ $SWAP == true ]]; then
+    cat <<EOF | fdisk $DEVICE
 g
 n
 1
 
-+512MiB
+$format_boot
+y
+t
+1
+n
+2
+
+$format_swap
+t
+2
+swap
+n
+3
+
+
+w
+EOF
+
+    else
+    cat <<EOF | fdisk $DEVICE
+g
+n
+1
+
+$format_boot
 y
 t
 1
@@ -41,35 +72,55 @@ n
 
 w
 EOF
-}
-
-get_format_drive() {
-    if [[ $DEVICE == *"nvme"* ]]; then
-        FORMAT_DRIVE="${DEVICE}p"
-    else
-        FORMAT_DRIVE="${DEVICE}"
     fi
 }
 
 _format_partitions() {
-    get_format_drive
-    mkfs.fat -F 32 "${FORMAT_DRIVE}1"
-    if [[ $FILE_SYSTEM == "btrfs" ]]; then
-        mkfs.$FILE_SYSTEM -f "${FORMAT_DRIVE}2"
+    if [[ $DEVICE == *"nvme"* ]]; then
+        DEVICE="${DEVICE}p"
+    fi
+
+    BOOT_DEVICE="${DEVICE}1"
+    
+    mkfs.fat -F 32 $BOOT_DEVICE
+    mkdir -pv /mnt
+
+
+    if [[ $SWAP == true ]]; then
+        SWAP_DEVICE="${DEVICE}2"
+        ROOT_DEVICE="${DEVICE}3"
+        
+        mkswap $SWAP_DEVICE
+        swapon $SWAP_DEVICE
+        
+        if [[ $FILE_SYSTEM == 'btrfs' ]]; then
+            mkfs.btrfs -f $ROOT_DEVICE
+        else
+            yes | mkfs.ext4 $ROOT_DEVICE
+        fi
     else
-        yes | mkfs.$FILE_SYSTEM "${FORMAT_DRIVE}2"
+        ROOT_DEVICE="${DEVICE}2"
+
+        if [[ $FILE_SYSTEM == 'btrfs' ]]; then
+          mkfs.btrfs -f $ROOT_DEVICE
+        else
+          yes | mkfs.ext4 $ROOT_DEVICE
+        fi
     fi
 }
 
-_mount_filesystem() {
-    get_format_drive
-    mount "${FORMAT_DRIVE}2" /mnt
-    mkdir -p /mnt/boot/efi
-    mount "${FORMAT_DRIVE}1" /mnt/boot/efi
+_mount_drives() {
+    if [[ $SWAP == true ]]; then
+        mount /dev/vda3 /mnt
+    else
+        mount /dev/vda2 /mnt
+    fi
+    mkdir -pv /mnt/boot/efi
+    mount /dev/vda1 /mnt/boot/efi
 }
 
 _run_pacstrap() {
-    packages="base base-devel linux linux-firmware linux-headers sof-firmware grub efibootmgr git curl wget"
+    packages="base base-devel linux linux-firmware linux-headers sof-firmware grub efibootmgr git curl wget ${TEXT_EDITOR}"
     pacstrap -K /mnt $packages
 }
 
@@ -101,41 +152,41 @@ EOF
 }
 
 _install_packages() {
-    PACSTRAP_PACKAGES="sudo git curl wget efibootmgr efivar grub dosfstools ${TEXT_EDITOR} "
-    PACSTRAP_PACKAGES+="xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
+    packages="sudo git curl wget efibootmgr efivar grub dosfstools "
+    packages+="xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
     case $GRAPHICS_DRIVER in
-        'Nvidia Proprietary') PACSTRAP_PACKAGES+="nvidia-dkms egl-wayland lib32-nvidia-utils lib32-opencl-nvidia nvidia-settings opencl-nvidia nvidia-utils ";;
-        'Nvidia Open') PACSTRAP_PACKAGES+="nvidia-open-dkms egl-wayland lib32-nvidia-utils lib32-opencl-nvidia nvidia-settings opencl-nvidia nvidia-utils ";;
-        'vulkan-nouveau') PACSTRAP_PACKAGES+="vulkan-nouveau mesa ";;
-        'xf86-nouveau') PACSTRAP_PACKAGES+="xf86-video-nouveau mesa ";;
-        'Intel') PACSTRAP_PACKAGES+="xf86-video-intel mesa ";;
-        'AMD GPU') PACSTRAP_PACKAGES+="xf86-video-amdgpu mesa ";;
-        'mesa') PACSTRAP_PACKAGES+="mesa ";;
+        'Nvidia Proprietary') packages+="nvidia-dkms egl-wayland lib32-nvidia-utils lib32-opencl-nvidia nvidia-settings opencl-nvidia nvidia-utils ";;
+        'Nvidia Open') packages+="nvidia-open-dkms egl-wayland lib32-nvidia-utils lib32-opencl-nvidia nvidia-settings opencl-nvidia nvidia-utils ";;
+        'vulkan-nouveau') packages+="vulkan-nouveau mesa ";;
+        'xf86-nouveau') packages+="xf86-video-nouveau mesa ";;
+        'Intel') packages+="xf86-video-intel mesa ";;
+        'AMD GPU') packages+="xf86-video-amdgpu mesa ";;
+        'mesa') packages+="mesa ";;
     esac
     case $DESKTOP in
-        'Gnome') PACSTRAP_PACKAGES+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal ${DISPLAY_MANAGER} " ;;
-        'Kde Plasma') PACSTRAP_PACKAGES+="plasma plasma-meta xdg-desktop-portal-kde kde-applications kde-utilities ${DISPLAY_MANAGER} " ;;
-        'XFCE') PACSTRAP_PACKAGES+="xfce4 xfce4-goodies extra/xfce4-terminal ${DISPLAY_MANAGER} " ;;
+        'Gnome') packages+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal ${DISPLAY_MANAGER} " ;;
+        'Kde Plasma') packages+="plasma plasma-meta xdg-desktop-portal-kde kde-applications kde-utilities ${DISPLAY_MANAGER} " ;;
+        'XFCE') packages+="xfce4 xfce4-goodies extra/xfce4-terminal ${DISPLAY_MANAGER} " ;;
     esac 
     if [[ "$AUR_WRAPPER" = "yay" ]]; then
-        PACSTRAP_PACKAGES+="go "
+        packages+="go "
     fi
     case $FILE_SYSTEM in
-        "ext4") PACSTRAP_PACKAGES+="e2fsprogs " ;;
-        "btrfs") PACSTRAP_PACKAGES+="btrfs-progs " ;;
+        "ext4") packages+="e2fsprogs " ;;
+        "btrfs") packages+="btrfs-progs " ;;
     esac
 
-    arch-chroot /mnt pacman -Sy --noconfirm $PACSTRAP_PACKAGES
+    arch-chroot /mnt pacman -Sy --noconfirm $packages
 }
 
 _create_user() {
     echo "Creating User"
-    arch-chroot /mnt useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
+    arch-chroot /mnt useradd -m -G wheel,video,audio $USER_NAME -s /bin/bash
     echo "Applying User Password"
-    arch-chroot /mnt echo '$USERNAME:$user_pass' | chpasswd
+    arch-chroot /mnt echo '$USER_NAME:$user_pass' | chpasswd
     if [[ $SUDOER = true ]]; then
         echo "Adding User to Sudoers"
-        arch-chroot /mnt sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USERNAME} ALL=(ALL:ALL) ALL" /etc/sudoers
+        arch-chroot /mnt sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USER_NAME} ALL=(ALL:ALL) ALL" /etc/sudoers
     fi
 }
 
@@ -156,15 +207,15 @@ _set_locale() {
 
 
 _install_yay() {
-export USERNAME
+export USER_NAME
     cat << 'EOF' > /mnt/chroot/install_yay.sh
 #!/bin/bash
 _install_yay() {
     cd /tmp
     git clone https://aur.archlinux.org/yay.git
-    chown -R $USERNAME yay/
+    chown -R $USER_NAME yay/
     cd yay/
-    su -c "makepkg" $USERNAME
+    su -c "makepkg" $USER_NAME
     pacman -U --noconfirm yay-*.pkg.tar.zst
 }
 _install_yay
@@ -175,15 +226,15 @@ EOF
 }
 
 _install_paru() {
-export USERNAME
+export USER_NAME
     cat << 'EOF' > /mnt/chroot/install_paru.sh
 #!/bin/bash
 install_paru() {
     cd /tmp
     git clone https://aur.archlinux.org/paru.git
-    chown -R $USERNAME paru/
+    chown -R $USER_NAME paru/
     cd paru/
-    su -c "makepkg" $USERNAME
+    su -c "makepkg" $USER_NAME
     pacman -U --noconfirm paru-*.pkg.tar.zst
 }
 install_paru
