@@ -13,7 +13,7 @@ USER_NAME=""            # Your primary user account's name
 USER_SUDO=true          # Should your user account have sudo privileges
 USER_PASSWORD=""        # The password for your user account
 LOCALE="en_US.UTF-8"    # The Locale / language for your computer
-TIMEZONE="Eastern"    # The timezone of your computer
+TIMEZONE="Eastern"      # The timezone of your computer
 
 init_test() {
     ping -c 1 google.com || ping_fail
@@ -42,6 +42,9 @@ fail() {
         4) prompt+="Base System" ;;
         5) prompt+="Generating FSTab" ;;
         6) prompt+="Chroot Steps" ;;
+        7) prompt+="Mounting Root";;
+        8) prompt+="Mounting Boot";;
+        9) prompt+="Enabling Swap";;
     esac
     echo -e $prompt
 }
@@ -104,10 +107,10 @@ disk_format() {
 
 mount_disks() {
     clear
-    mount $ROOT_PART /mnt
-    mkdir -p /mnt/boot/efi
-    mount $BOOT_PART /mnt/boot/efi
-    swapon $SWAP_PART
+    mount -v $ROOT_PART /mnt || fail 7
+    mkdir -pv /mnt/boot/efi
+    mount -v $BOOT_PART /mnt/boot/efi || fail 8
+    swapon -v $SWAP_PART || fail 9
 }
 
 base_packages() {
@@ -181,7 +184,8 @@ set_hostname() {
 }
 
 set_desktop() {
-    case $DESKTOP in
+    choice=$DESKTOP
+    case $choice in
         "KDE Plasma") packages="plasma plasma-meta"
                     DISPLAY_MANAGER="sddm";;
         "Gnome") packages="gnome gnome-extra gdm"
@@ -209,7 +213,7 @@ set_username() {
 }
 
 set_user_sudo() {
-
+    echo "Not yet, hun"
 }
 
 install_grub() {
@@ -223,3 +227,5 @@ EOF
     chmod a+x /mnt/chroot_steps.sh
     arch-chroot /mnt chroot_steps.sh
 }
+
+init_test
