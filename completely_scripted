@@ -36,26 +36,31 @@ fail() {
     prompt="Installation Failed: "
 
     case $flag in
-        1) prompt+="Disk Paritioning" ;;
-        2) prompt+="Disk Formatting" ;;
-        3) prompt+="Disk Mounting" ;;
-        4) prompt+="Base System" ;;
-        5) prompt+="Generating FSTab" ;;
-        6) prompt+="Chroot Steps" ;;
-        7) prompt+="Mounting Root";;
-        8) prompt+="Mounting Boot";;
-        9) prompt+="Enabling Swap";;
+        1) prompt+="Disk Partitioning";;
+        2) prompt+="Formatting Root";;
+        3) prompt+="Formatting Swap";;
+        4) prompt+="Formatting Boot";;
+        5) prompt+="Mounting Root";;
+        6) prompt+="Mounting Swap";;
+        7) prompt+="Mounting Boot";;
+        8) prompt+="Installing Base System";;
+        9) prompt+="Generating FSTab";;
+        10) prompt+="Chroot Steps";;
     esac
     echo -e $prompt
 }
 
 install() {
     disk_partition || fail 1
-    disk_format || fail 2
-    mount_disks || fail 3
-    base_packages || fail 4
-    generate_fstab || fail 5
-    chroot_steps || fail 6
+    format_root || fail 2
+    format_swap || fail 3
+    format_boot || fail 4
+    mount_root || fail 5
+    mount_swap || fail 6
+    mount_boot || fail 7
+    base_packages || fail 8
+    generate_fstab || fail 9
+    chroot_steps || fail 10
 }
 
 disk_partition() {
@@ -83,44 +88,68 @@ n
 w
 EOF
 }
-
-disk_format() {
+    # disk_format || fail 2
+format_root() {
     clear
     if [[ $DEVICE == *"nvme"* ]]; then
         BOOT_PART="/dev/${DEVICE}p1"
-        SWAP_PART="/dev/${DEVICE}p2"
-        ROOT_PART="/dev/${DEVICE}p3"
     else
         BOOT_PART="/dev/${DEVICE}1"
-        SWAP_PART="/dev/${DEVICE}2"
-        ROOT_PART="/dev/${DEVICE}3"
     fi
 
     mkfs.fat -F 32 $BOOT_PART
-    mkswap $SWAP_PART
-    if [[ $FILESYSTEM == "btrfs" ]]; then
-        mkfs.$FILESYSTEM -f $ROOT_PART
+}
+
+format_swap() {
+    clear
+    if [[ $DEVICE == *"nvme"* ]]; then
+        SWAP_PART="/dev/${DEVICE}p1"
     else
-        yes | mkfs.$FILESYSTEM $ROOT_PART
+        SWAP_PART="/dev/${DEVICE}1"
+    fi
+    mkswap $SWAP_PART
+}
+
+format_boot() {
+    clear
+    if [[ $DEVICE == *"nvme"* ]]; then
+        ROOT_PART="/dev/${DEVICE}p1"
+    else
+        ROOT_PART="/dev/${DEVICE}1"
+    fi
+    if [[ $FILESYSTEM == "btrfs" ]]; then
+        mkfs.btrfs -f $ROOT_PART
+    else
+        yes | mkfs.ext4 $ROOT_PART
     fi
 }
 
-mount_disks() {
+mount_root() {
     if [[ $DEVICE == *"nvme"* ]]; then
-        BOOT_PART="/dev/${DEVICE}p1"
-        SWAP_PART="/dev/${DEVICE}p2"
         ROOT_PART="/dev/${DEVICE}p3"
     else
-        BOOT_PART="/dev/${DEVICE}1"
-        SWAP_PART="/dev/${DEVICE}2"
         ROOT_PART="/dev/${DEVICE}3"
     fi
-    clear
-
-    mount -v $ROOT_PART /mnt || fail 7
+    mount -v $ROOT_PART /mnt
+}
+    
+mount_swap() {
+    if [[ $DEVICE == *"nvme"* ]]; then
+        SWAP_PART="/dev/${DEVICE}p2"
+    else
+        SWAP_PART="/dev/${DEVICE}2"
+    fi
+    swapon -v $SWAP_PART
+}
+    
+mount_boot() {
+    if [[ $DEVICE == *"nvme"* ]]; then
+        BOOT_PART="/dev/${DEVICE}p1"
+    else
+        BOOT_PART="/dev/${DEVICE}1"
+    fi
     mkdir -pv /mnt/boot/efi
-    mount -v $BOOT_PART /mnt/boot/efi || fail 8
-    swapon -v $SWAP_PART || fail 9
+    mount -v $BOOT_PART /mnt/boot/efi
 }
 
 base_packages() {
