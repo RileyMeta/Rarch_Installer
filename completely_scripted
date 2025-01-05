@@ -1,92 +1,225 @@
 #!/bin/bash
 
-USERNAME=""
-PASSWORD=""
-ROOT_PASSWORD=""
-FILESYSTEM="ext4"
-SWAP=true
-DEVICE=""
-BOOT_PARTITION="${DEVICE}1" # If drive is NVMe, please add `p` before partition numbers
-SWAP_PARTITION="${DEVICE}2" # If drive is NVMe, please add `p` before partition numbers
-ROOT_PARTITION="${DEVICE}3" # If drive is NVMe, please add `p` before partition numbers
+DISK=""                 # use lsblk and add the drive: sda, sdb, nvme0n1, etc 
+BOOT_PART=""            # Leave Empty   (Unless you know what this should be)
+SWAP_PART=""            # Leave Empty   (Unless you know what this should be)
+ROOT_PART=""            # Leave Empty   (Unless you know what this should be)
+FILESYSTEM=""           # ext4, BTRFS
+EDITOR="nano"           # nano, vi, vim, nvim, emacs, etc
+DESKTOP="KDE Plasma"    # KDE Plasma, Gnome, XFCE4, MATE, Cinnamon, etc 
+HOSTNAME=""             # What your computer is known as on networks
+ROOT_PASSWORD=""        # The Root account password (Leave empty to disable *hardmode*)
+USER_NAME=""            # Your primary user account's name
+USER_SUDO=true          # Should your user account have sudo privileges
+USER_PASSWORD=""        # The password for your user account
+LOCALE="en_US.UTF-8"    # The Locale / language for your computer
+TIMEZONE="Eastern"    # The timezone of your computer
+
+init_test() {
+    ping -c 1 google.com || ping_fail
+    timedatectl && install
+}
+
+ping_fail() {
+    clear
+    prompt="Unfortunately an internet connection could not be established."
+    prompt+="\nThe Arch installation process uses the network to download system packages."
+    prompt+="\nIf you're using WiFi, please try 'iwctl station wlan0 connect SSID'"
+    prompt+="\nyou may need to change 'wlan0' to match your hardware."
+    echo -e $prompt
+}
+
+fail() {
+    flag=$1
+
+    clear
+    prompt="Installation Failed: "
+
+    case $flag in
+        1) prompt+="Disk Paritioning" ;;
+        2) prompt+="Disk Formatting" ;;
+        3) prompt+="Disk Mounting" ;;
+        4) prompt+="Base System" ;;
+        5) prompt+="Generating FSTab" ;;
+        6) prompt+="Chroot Steps" ;;
+    esac
+    echo -e $prompt
+}
+
+install() {
+    disk_partition || fail 1
+    disk_format || fail 2
+    mount_disks || fail 3
+    base_packages || fail 4
+    generate_fstab || fail 5
+    chroot_steps || fail 6
+}
+
+disk_partition() {
+    clear
+    cat <<EOF | fdisk $DISK
+g
+n
+1
+
++1024MiB
+t
+1
+1
+n
+2
+
++4096MiB
+t
+2
+swap
+n
+3
+
+
+w
+EOF
+}
+
+disk_format() {
+    clear
+    if [[ $DEVICE == *"nvme"* ]]; then
+        BOOT_PART="/dev/${DEVICE}p1"
+        SWAP_PART="/dev/${DEVICE}p2"
+        ROOT_PART="/dev/${DEVICE}p3"
+    else
+        BOOT_PART="/dev/${DEVICE}1"
+        SWAP_PART="/dev/${DEVICE}2"
+        ROOT_PART="/dev/${DEVICE}3"
+    fi
+
+    mkfs.fat -F 32 $BOOT_PART
+    mkswap $SWAP_PART
+    if [[ $FILESYSTEM == "btrfs" ]]; then
+        mkfs.$FILESYSTEM -f $ROOT_PART
+    else
+        yes | mkfs.$FILESYSTEM $ROOT_PART
+    fi
+}
+
+mount_disks() {
+    clear
+    mount $ROOT_PART /mnt
+    mkdir -p /mnt/boot/efi
+    mount $BOOT_PART /mnt/boot/efi
+    swapon $SWAP_PART
+}
+
+base_packages() {
+    clear
+    pacstrap -K /mnt base base-devel linux linux-firmware linux-headers $EDITOR
+}
+
+generate_fstab() {
+    clear
+    genfstab -U /mnt >> /mnt/etc/fstab
+}
+
+chroot_steps() {
+    export TIMEZONE
+    export LOCALE
+    export HOSTNAME
+    export DESKTOP
+    export ROOT_PASSWORD
+    export USER_NAME
+    export USER_SUDO
+    export USER_PASSWORD
+    clear
+
+    cat <<EOF > /mnt/chroot_steps.sh
+#!/bin/bash
+
+fail() {
+    flag=$1
+    clear
+
+    prompt="Installation Failed: "
+
+    case $flag in
+        1) prompt+="TimeZone";;
+        2) prompt+="Locale";;
+        3) prompt+="Hostname";;
+        4) prompt+="Desktop";;
+        5) prompt+="Root Password";;
+        6) prompt+="Username";;
+        7) prompt+="User Sudo";;
+        8) prompt+="User Password";;
+        9) prompt+="Grub";;
+        10) prompt+="InitRamFS";;
+    esac
+}
 
 main() {
-    _add_sfdisk
-    if [[ $SWAP = true ]]; then
-        sfdisk ${DEVICE} < SWAP.sfdisk
-    else
-        sfdisk ${DEVICE} < NO_SWAP.sfdisk
-    fi
-    _format_partitions
-    _mount_partitions
-    _pacstrap
-    _genfstab
-    _rootPW
-    _user_account
-    _cleanup
+    set_timezone || fail 1
+    set_locale || fail 2
+    set_hostname || fail 3
+    set_desktop || fail 4
+    set_rootpw || fail 5
+    set_username || fail 6
+    set_user_sudo || fail 7
+    set_userpass || fail 8
+    install_grub || fail 9
+    generate_initramfs || fail 10
 }
 
-_add_sfdisk() {
-    cat <<'EOF' > SWAP.sfdisk
-label: gpt
-label-id: F30848F9-1529-4F61-B746-46314BBCD6C5
-device: /dev/nvme0n1
-unit: sectors
-first-lba: 2048
-last-lba: 1000215182
-sector-size: 512
-
-/dev/nvme0n1p1 : start=        2048, size=     1048576, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, uuid=E7ACBCF9-1E82-4F37-9119-D58076018F03
-/dev/nvme0n1p2 : start=     1050624, size=     4194304, type=0657FD6D-A4AB-43C4-84E5-0933C84B4F4F, uuid=7CA8F59D-70BD-46A2-A409-A5D1C4EDE47F
-/dev/nvme0n1p3 : start=     5244928, size=   994969600, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=AD8F3729-73A0-42AA-905B-953F0D2E0F8B
-EOF
-    cat <<'EOF' > NO_SWAP.sfdisk
-label: gpt
-label-id: D92B8D5A-4967-4BA0-9291-55D81AFDCF18
-device: /dev/nvme0n1
-unit: sectors
-first-lba: 34
-last-lba: 1953525134
-sector-size: 512
-
-/dev/nvme0n1p1 : start=        2048, size=     2097152, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, uuid=5EE15E4C-24B5-4B1D-98FE-32C7F1DA5CCC
-/dev/nvme0n1p2 : start=     2099200, size=  1951423920, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=E6FAAF4A-EEC3-46AE-8CBB-C4097287FA98
-EOF
+set_timezone() {
+    clear
+    ln -sf /usr/share/zoneinfo/US/${TIMEZONE} /etc/localtime && hwclock --systohc
 }
 
-_format_partitions() {
-    mkfs.fat -F 32 $BOOT_PARTITION
-    mkswap $SWAP_PARTITION
-    yes | mkfs.$FILESYSTEM $ROOT_PARTITION
+set_locale() {
+    echo "LANG=${LOCALE}" > /etc/locale.conf && locale-gen
 }
 
-_mount_partitions() {
-    mkdir -p /mnt/boot/efi/
-    mount $BOOT_PARTITION /mnt/boot/efi/
-    mount $ROOT_PARTITION /mnt/
-    swapon $SWAP_PARTITION
+set_hostname() {
+    echo "${HOSTNAME}" > /etc/hostname
 }
 
-_pacstrap() {
-    pacstrap -K /mnt base base-devel linux linux-headers linux-firmware nano grub efibootmgr
+set_desktop() {
+    case $DESKTOP in
+        "KDE Plasma") packages="plasma plasma-meta"
+                    DISPLAY_MANAGER="sddm";;
+        "Gnome") packages="gnome gnome-extra gdm"
+                    DISPLAY_MANAGER="";;
+        "XFCE4") packages="xfce4 xfce4-goodies"
+                    DISPLAY_MANAGER="lightdm";;
+        "MATE") packages="mate mate-extra"
+                    DISPLAY_MANAGER="lightdm";;
+        "Cinnamon") packages="cinnamon"
+                    DISPLAY_MANAGER="lightdm";;
+    esac
+    pacman -Sy --noconfirm $packages $DISPLAY_MANAGER && enable_dm
 }
 
-_genfstab() {
-    genfstab -U /mnt > /mnt/etc/fstab
+enable_dm() {
+    systemctl enable $DISPLAY_MANAGER
 }
 
-_rootPW() {
-    arch-chroot /mnt echo 'root:${ROOT_PASSWORD}' | chpasswd
+set_rootpw() {
+    echo "root:$ROOT_PASSWORD" | chpasswd
 }
 
-_user_account() {
-    arch-chroot /mnt useradd -m -G wheel,video,audio $USERNAME -s /bin/bash
-# Change from /bin/bash to /bin/zsh or fish, etc. Also make sure to install it during pacstrap.
-    arch-chroot /mnt echo '$USERNAME:$PASSWORD' | chpasswd
+set_username() {
+    useradd -m -G audio,video -s /bin/bash $USER_NAME
 }
 
-_cleanup() {
-    rm -rf /mnt/tmp/*
+set_user_sudo() {
+
+}
+
+install_grub() {
+    grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+    grub-mkconfig -o /boot/grub/grub.cfg
 }
 
 main
+EOF
+
+    chmod a+x /mnt/chroot_steps.sh
+    arch-chroot /mnt chroot_steps.sh
+}
