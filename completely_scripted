@@ -106,7 +106,17 @@ disk_format() {
 }
 
 mount_disks() {
+    if [[ $DEVICE == *"nvme"* ]]; then
+        BOOT_PART="/dev/${DEVICE}p1"
+        SWAP_PART="/dev/${DEVICE}p2"
+        ROOT_PART="/dev/${DEVICE}p3"
+    else
+        BOOT_PART="/dev/${DEVICE}1"
+        SWAP_PART="/dev/${DEVICE}2"
+        ROOT_PART="/dev/${DEVICE}3"
+    fi
     clear
+
     mount -v $ROOT_PART /mnt || fail 7
     mkdir -pv /mnt/boot/efi
     mount -v $BOOT_PART /mnt/boot/efi || fail 8
