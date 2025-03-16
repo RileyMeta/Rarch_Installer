@@ -26,6 +26,7 @@ USER_NAME=""                    # Your primary user account's name
 USER_SUDO=false                 # Should your user account have sudo privileges
 USER_PASSWORD=""                # The password for your user account
 LOCALE=""                       # The Locale / language for your computer
+REGION=""                       # The Region you exist in: US/Europe/etc.
 TIMEZONE=""                     # The timezone of your computer
 
 #
@@ -157,7 +158,7 @@ add_user() {
     clear
     archroot useradd -m -G wheel,audio,video $USER_NAME
     if [[ $USER_PASSWORD != "" ]]; then
-        echo "$USERNAME:$USER_PASSWORD" | archroot chpasswd
+        echo "$USER_NAME:$USER_PASSWORD" | archroot chpasswd
     fi
     sleep 1
 }
