@@ -26,7 +26,6 @@ USER_NAME=""                    # Your primary user account's name
 USER_SUDO=false                 # Should your user account have sudo privileges
 USER_PASSWORD=""                # The password for your user account
 LOCALE=""                       # The Locale / language for your computer
-REGION=""                       # The region you live in: US/Europe/etc
 TIMEZONE=""                     # The timezone of your computer
 
 #
@@ -98,7 +97,7 @@ EOF
 format() {
     mkfs.fat -F 32 $BOOT
     mkswap $SWAP
-    mkfs.btrfs -f $ROOT
+    mkfs.btrfs $ROOT
     sleep 1
 }
 
@@ -243,10 +242,10 @@ install() {
         "mount_parts:Mounting Partitions"
         "install_packages:Installing Packages"
         "generate_fstab:Generating FSTAB"
+        "install_bootloader:Bootloader Installation"
+        "systemd_services:SystemD Services"
         "set_rootpw:Setting Root Password"
         "add_user:Adding User"
-        "systemd_services:SystemD Services"
-        "install_bootloader:Bootloader Installation"
         "generate_locale:Generating Locale"
         "set_locale:Setting Locale"
         "set_timezone:Setting Timezone"
