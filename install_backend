@@ -1,51 +1,86 @@
 #!/bin/bash
 
-full_install() {
-    _partition_drives
-    _format_partitions
-    _mount_drives
-    _run_pacstrap
-    _run_genfstab
-    _set_rootpw
-    _install_grub
+#
+# Global Variables used throughout the Script
+#
 
-    if [[ $account_created == true ]]; then
-        _create_user
-    fi
-    _install_packages
-    case $AUR_WRAPPER in
-        'yay') _install_yay;;
-        'paru') _install_paru;;
-        'none') : ;;
-    esac
-    if [[ $SYMLINK = true ]]; then
-        _run_symlink
-    fi
-    _run_systemd
-    _set_hostname
-    _set_locale
+SELECTED_DEVICE="vda"
+DEVICE="/dev/${SELECTED_DEVICE}" # Temp, remove after testing, Dialog Script has a function for getting the device
+
+# Required because Linux appends a p for each Partition
+if [[ $DEVICE == *"nvme"* ]]; then
+    BOOT="${DEVICE}p1"
+    SWAP="${DEVICE}p2"
+    ROOT="${DEVICE}p3"
+else
+    BOOT="${DEVICE}1"
+    SWAP="${DEVICE}2"
+    ROOT="${DEVICE}3"
+fi
+
+EDITOR=""                       # nano, vi, vim, nvim, emacs, ed, etc; leave blank for none (Not recommended)
+DESKTOP=""                      # KDE Plasma, Gnome, XFCE4, MATE, Cinnamon, etc; "None" for headless/server
+HOSTNAME=""                     # What your computer is known as on networks
+ROOT_PASSWORD=""                # The Root account password (Leave empty to disable *hardmode*)
+USER_NAME=""                    # Your primary user account's name
+USER_SUDO=false                 # Should your user account have sudo privileges
+USER_PASSWORD=""                # The password for your user account
+LOCALE=""                       # The Locale / language for your computer
+TIMEZONE=""                     # The timezone of your computer
+
+#
+# Helper Functions
+#
+archroot() {
+    # User-Friendly way to issue commands from outside the chroot
+    flag=$@
+    arch-chroot /mnt $flag
 }
 
-_partition_drives() {
-    BOOT_SIZE=512
-    SWAP_SIZE=4096
-    format_boot="+${BOOT_SIZE}MiB"
-    format_swap="+${SWAP_SIZE}MiB"
+nspawn() {
+    # User-Friendly way to start services from outside the chroot
+    flag=$@
+    systemd-nspawn -D /mnt -- systemctl enable $flag.service
+}
 
-    if [[ $SWAP == true ]]; then
-    cat <<EOF | fdisk $DEVICE
+catastrophic_failure() { # In the event of a catastrophic failure, display the error message
+    argument=$@
+    clear
+    echo -e "Catastrophic Failure: ${argument}"
+}
+
+ping_fail() {
+    clear
+    prompt="Unfortunately an internet connection could not be established."
+    prompt+="\nThe Arch installation process uses the network to download system packages."
+    prompt+="\nIf you're using WiFi, please try 'iwctl station wlan0 connect <Network_SSID>'"
+    prompt+="\nyou may need to change 'wlan0' to match your hardware."
+    echo -e $prompt
+}
+
+
+
+#
+# Actual Installation Steps taking place below here
+#
+init_test() { # Ensure that the host has an Internet Connection
+    ping -c 1 google.com || ping_fail
+    timedatectl && install # Begin the install
+}
+
+partition() {
+  cat <<EOF | fdisk $DEVICE
 g
 n
 1
 
-$format_boot
-y
++1G
 t
 1
 n
 2
 
-$format_swap
++4G
 t
 2
 swap
@@ -55,200 +90,163 @@ n
 
 w
 EOF
-
-    else
-    cat <<EOF | fdisk $DEVICE
-g
-n
-1
-
-$format_boot
-y
-t
-1
-n
-2
-
-
-w
-EOF
-    fi
 }
 
-_format_partitions() {
-    if [[ $DEVICE == *"nvme"* ]]; then
-        DEVICE="${DEVICE}p"
-    fi
-
-    BOOT_DEVICE="${DEVICE}1"
-    
-    mkfs.fat -F 32 $BOOT_DEVICE
-    mkdir -pv /mnt
-
-
-    if [[ $SWAP == true ]]; then
-        SWAP_DEVICE="${DEVICE}2"
-        ROOT_DEVICE="${DEVICE}3"
-        
-        mkswap $SWAP_DEVICE
-        swapon $SWAP_DEVICE
-        
-        if [[ $FILE_SYSTEM == 'btrfs' ]]; then
-            mkfs.btrfs -f $ROOT_DEVICE
-        else
-            yes | mkfs.ext4 $ROOT_DEVICE
-        fi
-    else
-        ROOT_DEVICE="${DEVICE}2"
-
-        if [[ $FILE_SYSTEM == 'btrfs' ]]; then
-          mkfs.btrfs -f $ROOT_DEVICE
-        else
-          yes | mkfs.ext4 $ROOT_DEVICE
-        fi
-    fi
+format() {
+    mkfs.fat -F 32 $BOOT
+    mkswap $SWAP
+    mkfs.btrfs $ROOT
 }
 
-_mount_drives() {
-    if [[ $SWAP == true ]]; then
-        mount /dev/vda3 /mnt
-    else
-        mount /dev/vda2 /mnt
-    fi
-    mkdir -pv /mnt/boot/efi
-    mount /dev/vda1 /mnt/boot/efi
+mount_parts() {
+    mount $ROOT /mnt
+    swapon $SWAP
+    mkdir -p /mnt/boot/efi
+    mount $BOOT /mnt/boot/efi
 }
 
-_run_pacstrap() {
-    packages="base base-devel linux linux-firmware linux-headers sof-firmware grub efibootmgr git curl wget ${TEXT_EDITOR}"
-    pacstrap -K /mnt $packages
+install_packages() {
+    case $DESKTOP in
+        "KDE Plasma") 
+            packages="plasma plasma-meta konsole dolphin"
+            DISPLAY_MANAGER="sddm";;
+        "Gnome") 
+            packages="gnome gnome-extras"
+            DISPLAY_MANAGER="gdm";;
+        "XFCE4")
+            packages="xfce4 xfce4-goodies"
+            DISPLAY_MANAGER="sddm";;
+        "MATE")
+            packages="mate mate-extra"
+            DISPLAY_MANAGER="lightdm";;
+        "Cinnamon")
+            packages="cinnamon"
+            DISPLAY_MANAGER="lightdm-slick-greeter";;
+        "None")
+            packages="";;
+    esac
+
+    pacstrap -K /mnt base base-devel linux linux-firmware linux-headers \
+                     git go curl wget grub efibootmgr networkmanager \
+                     $packages $DISPLAY_MANAGER $EDITOR
 }
 
-_run_genfstab() {
-    echo "Generating FSTab"
+generate_fstab() {
     genfstab -U /mnt >> /mnt/etc/fstab
 }
 
-_set_rootpw() {
-    echo "Setting Root Password"
-    arch-chroot /mnt echo "root:$ROOT_PW" | chpasswd
+set_rootpw() {
+    echo "root:${ROOT_PASSWORD}" | archroot chpasswd
 }
 
-_install_grub() {
-    mkdir -v /mnt/chroot
-    cat <<EOF > /mnt/chroot/grub_install
-#!/bin/bash
-
-main() {
-    mount /boot/efi
-    grub-install --efi-directory=/boot/efi --target=x86_64-efi --bootloader-id=GRUB --removable
-    grub-mkconfig -o /boot/grub/grub.cfg
-}
-main
-EOF
-
-    chmod a+x /mnt/chroot/grub_install
-    arch-chroot /mnt /chroot/grub_install
-}
-
-_install_packages() {
-    packages="sudo git curl wget efibootmgr efivar grub dosfstools "
-    packages+="xdg-user-dirs xdg-desktop-portal xdg-utils extra/networkmanager "
-    case $GRAPHICS_DRIVER in
-        'Nvidia Proprietary') packages+="nvidia-dkms egl-wayland lib32-nvidia-utils lib32-opencl-nvidia nvidia-settings opencl-nvidia nvidia-utils ";;
-        'Nvidia Open') packages+="nvidia-open-dkms egl-wayland lib32-nvidia-utils lib32-opencl-nvidia nvidia-settings opencl-nvidia nvidia-utils ";;
-        'vulkan-nouveau') packages+="vulkan-nouveau mesa ";;
-        'xf86-nouveau') packages+="xf86-video-nouveau mesa ";;
-        'Intel') packages+="xf86-video-intel mesa ";;
-        'AMD GPU') packages+="xf86-video-amdgpu mesa ";;
-        'mesa') packages+="mesa ";;
-    esac
-    case $DESKTOP in
-        'Gnome') packages+="gnome gnome-extra xdg-desktop-portal-gtk xdg-desktop-portal-gnome gnome-terminal ${DISPLAY_MANAGER} " ;;
-        'Kde Plasma') packages+="plasma plasma-meta xdg-desktop-portal-kde kde-applications kde-utilities ${DISPLAY_MANAGER} " ;;
-        'XFCE') packages+="xfce4 xfce4-goodies extra/xfce4-terminal ${DISPLAY_MANAGER} " ;;
-    esac 
-    if [[ "$AUR_WRAPPER" = "yay" ]]; then
-        packages+="go "
-    fi
-    case $FILE_SYSTEM in
-        "ext4") packages+="e2fsprogs " ;;
-        "btrfs") packages+="btrfs-progs " ;;
-    esac
-
-    arch-chroot /mnt pacman -Sy --noconfirm $packages
-}
-
-_create_user() {
-    echo "Creating User"
-    arch-chroot /mnt useradd -m -G wheel,video,audio $USER_NAME -s /bin/bash
-    echo "Applying User Password"
-    arch-chroot /mnt echo '$USER_NAME:$user_pass' | chpasswd
-    if [[ $SUDOER = true ]]; then
-        echo "Adding User to Sudoers"
-        arch-chroot /mnt sed -i "/^root.*ALL=(ALL:ALL) ALL/a\\${USER_NAME} ALL=(ALL:ALL) ALL" /etc/sudoers
+add_user() {
+    archroot useradd -m -G wheel,audio,video $USER_NAME
+    if [[ $USER_PASSWORD != "" ]]; then
+        echo "$USERNAME:$USER_PASSWORD" | archroot chpasswd
     fi
 }
 
-_run_systemd() {
-    systemd-nspawn -D /mnt -- systemctl enable $DISPLAY_MANAGER
-    systemd-nspawn -D /mnt -- systemctl enable NetworkManager
+add_sudo() {
+    archroot echo "${USER_NAME} ALL=(ALL:ALL) ALL" > /etc/sudoers.d/"00_$(USER_NAME)"
 }
 
-_set_hostname() {
-    echo -e "Setting Hostname\n>> echo '${NEW_HOST_NAME}' > /etc/hostname"
-    echo "${NEW_HOST_NAME}" > /mnt/etc/hostname 
+systemd_services() {
+    nspawn NetworkManager
+    nspawn "${DISPLAY_MANAGER}"
 }
 
-_set_locale() {
-    echo -e "Setting Locale\n>> echo '${SELECTED_LOCALE}' > /etc/locale"
-    echo "${SELECTED_LOCALE}" > /mnt/etc/locale
+install_bootloader() {
+    archroot grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id="Grub - Arch Linux"
+    archroot grub-mkconfig -o /boot/grub/grub.cfg
 }
 
+generate_locale() {
+    archroot sed -i '' /etc/locale.gen # TODO: FIX
+    locale-gen
+}
 
-_install_yay() {
-export USER_NAME
-    cat << 'EOF' > /mnt/chroot/install_yay.sh
+set_locale() {
+    archroot echo "LANG=${LOCALE}.UTF-8" > /etc/locale.conf
+}
+
+set_timezone() {
+    archroot ln -sf /usr/share/zoneinfo/${REGION}/${TIMEZONE} /etc/localtime
+    hwclock --systohc # Sync Time / Date to new TimeZone
+}
+
+install_yay() {
+    export $USER_NAME
+    cat <<EOF > /mnt/tmp/install_yay.sh
 #!/bin/bash
+
+USER_NAME=$USER_NAME
+
 _install_yay() {
     cd /tmp
     git clone https://aur.archlinux.org/yay.git
-    chown -R $USER_NAME yay/
+    chown -R \$USER_NAME yay/
     cd yay/
-    su -c "makepkg" $USER_NAME
+    su -c "makepkg" \$USER_NAME
     pacman -U --noconfirm yay-*.pkg.tar.zst
 }
 _install_yay
 EOF
-    chmod +x /mnt/chroot/install_yay.sh
-    arch-chroot /mnt /chroot/install_yay.sh
-    rm -rf /mnt/chroot/install_yay.sh
+    chmod a+x /mnt/tmp/install_yay.sh
+    archroot /tmp/install_yay.sh
 }
 
-_install_paru() {
-export USER_NAME
-    cat << 'EOF' > /mnt/chroot/install_paru.sh
+install_paru() {
+    export $USER_NAME
+    cat <<EOF > /mnt/tmp/install_paru.sh
 #!/bin/bash
+
+USER_NAME=$USER_NAME
+
 install_paru() {
     cd /tmp
     git clone https://aur.archlinux.org/paru.git
-    chown -R $USER_NAME paru/
+    chown -R \$USER_NAME paru/
     cd paru/
-    su -c "makepkg" $USER_NAME
+    su -c "makepkg" \$USER_NAME
     pacman -U --noconfirm paru-*.pkg.tar.zst
 }
 install_paru
 EOF
-    chmod +x /mnt/chroot/install_paru.sh
-    arch-chroot /mnt /chroot/install_paru.sh
-    rm -rf /mnt/chroot/install_paru.sh
-}
-
-_run_symlink() {
-    echo -e "Symlinking ${TEXT_EDITOR} Text Editor to vi"
-    arch-chroot /mnt ln -sf /mnt/usr/bin/$TEXT_EDITOR /mnt/usr/bin/vi
+    chmod +x /mnt/tmp/install_paru.sh
+    archroot /tmp/install_paru.sh
 }
 
 clean_up() {
-    rm -rf /mnt/chroot
+    rm -rf /mnt/tmp/*
+
+# New Install Steps
+install() {
+    local steps=(
+        "partition:Partitioning Drive"
+        "format:Formatting Partitions"
+        "mount_parts:Mounting Partitions"
+        "install_base:Installing Base"
+        "generate_fstab:Generating FSTAB"
+        "install_desktop:Installing Desktop"
+        "set_rootpw:Setting Root Password"
+        "add_user:Adding User"
+        "systemd_services:SystemD Services"
+        "install_bootloader:Bootloader Installation"
+        "generate_locale:Generating Locale"
+        "set_locale:Setting Locale"
+        "set_timezone:Setting Timezone"
+    )
+
+    # Run main installation steps
+    for step in "${steps[@]}"; do
+        IFS=":" read -r func msg <<< "$step"
+        "$func" || catastrophic_failure "$msg"
+    done
+
+    [[ $USER_SUDO == true ]] && add_sudo || catastrophic_failure "Adding User to Sudoers"
+
+    case $AUR_WRAPPER in
+        "Yay") install_yay || catastrophic_failure "Installing Yay" ;;
+        "Paru") install_paru || catastrophic_failure "Installing Paru" ;;
+    esac
 }
