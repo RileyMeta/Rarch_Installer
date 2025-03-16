@@ -218,6 +218,7 @@ EOF
 
 clean_up() {
     rm -rf /mnt/tmp/*
+}
 
 # New Install Steps
 install() {
