@@ -47,7 +47,6 @@ catastrophic_failure() { # In the event of a catastrophic failure, display the e
     argument=$@
     clear
     echo -e "Catastrophic Failure: ${argument}"
-    exit 1
 }
 
 ping_fail() {
@@ -91,12 +90,15 @@ n
 
 w
 EOF
+
+    sleep 1
 }
 
 format() {
     mkfs.fat -F 32 $BOOT
     mkswap $SWAP
     mkfs.btrfs $ROOT
+    sleep 1
 }
 
 mount_parts() {
@@ -104,6 +106,7 @@ mount_parts() {
     swapon $SWAP
     mkdir -p /mnt/boot/efi
     mount $BOOT /mnt/boot/efi
+    sleep 1
 }
 
 install_packages() {
@@ -130,14 +133,17 @@ install_packages() {
     pacstrap -K /mnt base base-devel linux linux-firmware linux-headers \
                      git go curl wget grub efibootmgr networkmanager \
                      $packages $DISPLAY_MANAGER $EDITOR
+    sleep 1
 }
 
 generate_fstab() {
     genfstab -U /mnt >> /mnt/etc/fstab
+    sleep 1
 }
 
 set_rootpw() {
     echo "root:${ROOT_PASSWORD}" | archroot chpasswd
+    sleep 1
 }
 
 add_user() {
@@ -145,34 +151,41 @@ add_user() {
     if [[ $USER_PASSWORD != "" ]]; then
         echo "$USERNAME:$USER_PASSWORD" | archroot chpasswd
     fi
+    sleep 1
 }
 
 add_sudo() {
     archroot echo "${USER_NAME} ALL=(ALL:ALL) ALL" > /etc/sudoers.d/"00_$(USER_NAME)"
+    sleep 1
 }
 
 systemd_services() {
     nspawn NetworkManager
     nspawn "${DISPLAY_MANAGER}"
+    sleep 1
 }
 
 install_bootloader() {
     archroot grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id="Grub - Arch Linux"
     archroot grub-mkconfig -o /boot/grub/grub.cfg
+    sleep 1
 }
 
 generate_locale() {
     archroot sed -i '' /etc/locale.gen # TODO: FIX
     locale-gen
+    sleep 1
 }
 
 set_locale() {
     archroot echo "LANG=${LOCALE}.UTF-8" > /etc/locale.conf
+    sleep 1
 }
 
 set_timezone() {
     archroot ln -sf /usr/share/zoneinfo/${REGION}/${TIMEZONE} /etc/localtime
     hwclock --systohc # Sync Time / Date to new TimeZone
+    sleep 1
 }
 
 install_yay() {
@@ -219,7 +232,6 @@ EOF
 
 clean_up() {
     rm -rf /mnt/tmp/*
-}
 
 # New Install Steps
 install() {
