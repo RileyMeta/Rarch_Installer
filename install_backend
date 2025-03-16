@@ -26,6 +26,7 @@ USER_NAME=""                    # Your primary user account's name
 USER_SUDO=false                 # Should your user account have sudo privileges
 USER_PASSWORD=""                # The password for your user account
 LOCALE=""                       # The Locale / language for your computer
+REGION=""                       # The region you live in: US/Europe/etc
 TIMEZONE=""                     # The timezone of your computer
 
 #
