@@ -69,7 +69,8 @@ init_test() { # Ensure that the host has an Internet Connection
 }
 
 partition() {
-  cat <<EOF | fdisk $DEVICE
+    clear
+    cat <<EOF | fdisk $DEVICE
 g
 n
 1
@@ -95,6 +96,7 @@ EOF
 }
 
 format() {
+    clear
     mkfs.fat -F 32 $BOOT
     mkswap $SWAP
     mkfs.btrfs $ROOT
@@ -102,6 +104,7 @@ format() {
 }
 
 mount_parts() {
+    clear
     mount $ROOT /mnt
     swapon $SWAP
     mkdir -p /mnt/boot/efi
@@ -110,6 +113,7 @@ mount_parts() {
 }
 
 install_packages() {
+    clear
     case $DESKTOP in
         "KDE Plasma") 
             packages="plasma plasma-meta konsole dolphin"
@@ -137,16 +141,20 @@ install_packages() {
 }
 
 generate_fstab() {
+    clear
     genfstab -U /mnt >> /mnt/etc/fstab
+    cat /mnt/etc/fstab
     sleep 1
 }
 
 set_rootpw() {
+    clear
     echo "root:${ROOT_PASSWORD}" | archroot chpasswd
     sleep 1
 }
 
 add_user() {
+    clear
     archroot useradd -m -G wheel,audio,video $USER_NAME
     if [[ $USER_PASSWORD != "" ]]; then
         echo "$USERNAME:$USER_PASSWORD" | archroot chpasswd
@@ -155,34 +163,42 @@ add_user() {
 }
 
 add_sudo() {
+    clear
     archroot echo "${USER_NAME} ALL=(ALL:ALL) ALL" > /etc/sudoers.d/"00_$(USER_NAME)"
     sleep 1
 }
 
 systemd_services() {
+    clear
     nspawn NetworkManager
-    nspawn "${DISPLAY_MANAGER}"
+    if [[ $DISPLAY_MANAGER != "" ]]; then
+        nspawn "${DISPLAY_MANAGER}"
+    fi
     sleep 1
 }
 
 install_bootloader() {
+    clear
     archroot grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id="Grub - Arch Linux"
     archroot grub-mkconfig -o /boot/grub/grub.cfg
     sleep 1
 }
 
 generate_locale() {
+    clear
     archroot sed -i '' /etc/locale.gen # TODO: FIX
     locale-gen
     sleep 1
 }
 
 set_locale() {
+    clear
     archroot echo "LANG=${LOCALE}.UTF-8" > /etc/locale.conf
     sleep 1
 }
 
 set_timezone() {
+    clear
     archroot ln -sf /usr/share/zoneinfo/${REGION}/${TIMEZONE} /etc/localtime
     hwclock --systohc # Sync Time / Date to new TimeZone
     sleep 1
