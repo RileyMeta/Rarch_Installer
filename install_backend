@@ -47,6 +47,7 @@ catastrophic_failure() { # In the event of a catastrophic failure, display the e
     argument=$@
     clear
     echo -e "Catastrophic Failure: ${argument}"
+    exit 1
 }
 
 ping_fail() {
