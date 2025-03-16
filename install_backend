@@ -164,8 +164,8 @@ add_user() {
 }
 
 add_sudo() {
-    clear    
-    echo "${USER_NAME} ALL=(ALL) ALL" > /mnt/etc/sudoers.d/00_${USER_NAME}
+    clear
+    echo "${USER_NAME} ALL=(ALL:ALL) ALL" | archroot tee /etc/sudoers.d/00_$USER_NAME
     chmod 0440 /mnt/etc/sudoers.d/00_${USER_NAME}
     sleep 1
 }
