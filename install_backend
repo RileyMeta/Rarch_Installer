@@ -98,7 +98,7 @@ EOF
 format() {
     mkfs.fat -F 32 $BOOT
     mkswap $SWAP
-    mkfs.btrfs $ROOT
+    mkfs.btrfs -f $ROOT
     sleep 1
 }
 
@@ -241,9 +241,8 @@ install() {
         "partition:Partitioning Drive"
         "format:Formatting Partitions"
         "mount_parts:Mounting Partitions"
-        "install_base:Installing Base"
+        "install_packages:Installing Packages"
         "generate_fstab:Generating FSTAB"
-        "install_desktop:Installing Desktop"
         "set_rootpw:Setting Root Password"
         "add_user:Adding User"
         "systemd_services:SystemD Services"
