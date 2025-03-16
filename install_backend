@@ -165,7 +165,7 @@ add_user() {
 
 add_sudo() {
     clear
-    archroot echo "${USER_NAME} ALL=(ALL:ALL) ALL" > /etc/sudoers.d/"00_$(USER_NAME)"
+    echo "${USER_NAME} ALL=(ALL:ALL) ALL" > /mnt/sudoers.d/00_$USER_NAME
     sleep 1
 }
 
@@ -201,7 +201,7 @@ set_locale() {
 set_timezone() {
     clear
     archroot ln -sf /usr/share/zoneinfo/${REGION}/${TIMEZONE} /etc/localtime
-    hwclock --systohc # Sync Time / Date to new TimeZone
+    archroot hwclock --systohc # Sync Time / Date to new TimeZone
     sleep 1
 }
 
