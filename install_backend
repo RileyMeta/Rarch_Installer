@@ -100,7 +100,7 @@ format() {
     clear
     mkfs.fat -F 32 $BOOT
     mkswap $SWAP
-    mkfs.btrfs $ROOT
+    mkfs.btrfs -f $ROOT
     sleep 1
 }
 
