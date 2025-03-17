@@ -170,11 +170,18 @@ add_sudo() {
     # chmod 0440 /mnt/etc/sudoers.d/00_${USER_NAME}
     # sudo sed -i "/^root ALL=(ALL:ALL) ALL/a ${USER_NAME} ALL=(ALL:ALL) ALL" /mnt/etc/sudoers.d/00_$USER_NAME
     # echo "Unable to adjust sudoers list. Please use `visudo` to correct this."
-    #echo "${USER_NAME} ALL=(ALL) ALL" | sudo dd of=/mnt/etc/sudoers.d/00_${USER_NAME}
+    # echo "${USER_NAME} ALL=(ALL) ALL" | sudo dd of=/mnt/etc/sudoers.d/00_${USER_NAME}
 
-    echo "This script is currently unable to adjust sudo permissions. Please use `visudo` to adjust the settings yourself:"
-    arch-chroot /mnt
+    export USER_NAME
+    cat <<EOF > /mnt/tmp/sudoer.sh
+#!/bin/bash
 
+echo "\${USER_NAME} ALL=(ALL:ALL) ALL" > /etc/sudoers.d/00_$USER_NAME
+
+EOF
+
+    chmod a+x /mnt/tmp/sudoers.sh
+    archroot /tmp/suders.sh
     sleep 1
 }
 
