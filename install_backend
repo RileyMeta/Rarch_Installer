@@ -169,8 +169,9 @@ add_sudo() {
     # echo "${USER_NAME} ALL=(ALL:ALL) ALL" | archroot tee /etc/sudoers.d/00_$USER_NAME
     # chmod 0440 /mnt/etc/sudoers.d/00_${USER_NAME}
     # sudo sed -i "/^root ALL=(ALL:ALL) ALL/a ${USER_NAME} ALL=(ALL:ALL) ALL" /mnt/etc/sudoers.d/00_$USER_NAME
+    # echo "Unable to adjust sudoers list. Please use `visudo` to correct this."
 
-    echo "Unable to adjust sudoers list. Please use `visudo` to correct this."
+    echo "${USER_NAME} ALL=(ALL) ALL" | sudo dd of=/mnt/etc/sudoers.d/00_${USER_NAME}
 
     sleep 1
 }
