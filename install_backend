@@ -22,6 +22,7 @@ EDITOR=""                       # nano, vi, vim, nvim, emacs, ed, etc; leave bla
 DESKTOP=""                      # KDE Plasma, Gnome, XFCE4, MATE, Cinnamon, etc; "None\" for headless/server
 HOSTNAME=""                     # What your computer is known as on networks
 ROOT_PASSWORD=""                # The Root account password (Leave empty to disable *hardmode*)
+root_pass_set=false             # Whether or not the Root Password was set
 USER_NAME=""                    # Your primary user account's name
 USER_SUDO=false                 # Should your user account have sudo privileges
 USER_PASSWORD=""                # The password for your user account
@@ -35,18 +36,18 @@ AUR_WRAPPER=""                  # yay, paru or "none"
 #
 archroot() {
     # User-Friendly way to issue commands from outside the chroot
-    flag=$@
-    arch-chroot /mnt $flag
+    flag=$*
+    arch-chroot /mnt "$flag"
 }
 
 nspawn() {
     # User-Friendly way to start services from outside the chroot
-    flag=$@
-    systemd-nspawn -D /mnt -- systemctl enable $flag.service
+    flag=$*
+    systemd-nspawn -D /mnt -- systemctl enable "$flag".service
 }
 
 catastrophic_failure() { # In the event of a catastrophic failure, display the error message
-    argument=$@
+    argument=$*
     clear
     echo -e "Catastrophic Failure: ${argument}"
 }
@@ -57,7 +58,7 @@ ping_fail() {
     prompt+="\nThe Arch installation process uses the network to download system packages."
     prompt+="\nIf you're using WiFi, please try 'iwctl station wlan0 connect <Network_SSID>'"
     prompt+="\nyou may need to change 'wlan0' to match your hardware."
-    echo -e $prompt
+    echo -e "$prompt"
 }
 
 #
@@ -74,6 +75,11 @@ multilib() {
 [multilib]
 Include = /etc/pacman.d/mirrorlist
 EOF
+}
+
+unmount_all() {
+    umount -R /mnt/boot/efi
+    umount -R /mnt
 }
 
 #
@@ -97,7 +103,7 @@ partition() {
         SWAP_SIZE="+4G"
     fi
 
-    cat <<EOF | fdisk $DEVICE
+    cat <<EOF | fdisk "$DEVICE"
 g
 n
 1
@@ -124,24 +130,24 @@ EOF
 
 format() {
     clear
-    mkfs.fat -F 32 $BOOT
-    mkswap $SWAP
+    mkfs.fat -F 32 "$BOOT"
+    mkswap "$SWAP"
 
     case $FILE_SYSTEM in
         "btrfs")
-            mkfs.btrfs -f $ROOT;;
+            mkfs.btrfs -f "$ROOT";;
         "ext4")
-            yes | mkfs.ext4 $ROOT;;
+            yes | mkfs.ext4 "$ROOT";;
     esac
     sleep 1
 }
 
 mount_parts() {
     clear
-    mount $ROOT /mnt
-    swapon $SWAP
+    mount "$ROOT" /mnt
+    swapon "$SWAP"
     mkdir -p /mnt/boot/efi
-    mount $BOOT /mnt/boot/efi
+    mount "$BOOT" /mnt/boot/efi
     sleep 1
 }
 
@@ -167,7 +173,7 @@ install_packages() {
             packages="";;
     esac
 
-    case GRAPHICS_DRIVER in
+    case $GRAPHICS_DRIVER in
         "Nvidia Proprietary")
             drivers="nvidia-dkms egl-wayland lib32-nvidia-utils lib32-opencl-nvidia nvidia-settings opencl-nvidia nvidia-utils";;
         "Nvidia Open")
@@ -187,7 +193,7 @@ install_packages() {
 
     pacstrap -K /mnt base base-devel linux linux-firmware linux-headers \
                      git go curl wget grub efibootmgr networkmanager \
-                     $packages $DISPLAY_MANAGER $drivers $EDITOR
+                     "$packages" "$DISPLAY_MANAGER" "$drivers" "$EDITOR"
     sleep 1
 }
 
@@ -206,7 +212,7 @@ set_rootpw() {
 
 add_user() {
     clear
-    archroot useradd -m -G wheel,audio,video $USER_NAME
+    archroot useradd -m -G wheel,audio,video "$USER_NAME"
     if [[ $USER_PASSWORD != "" ]]; then
         echo "$USER_NAME:$USER_PASSWORD" | archroot chpasswd
     fi
@@ -253,13 +259,13 @@ set_locale() {
 
 set_timezone() {
     clear
-    archroot ln -sf /usr/share/zoneinfo/${REGION}/${TIMEZONE} /etc/localtime
+    archroot ln -sf /usr/share/zoneinfo/"${REGION}"/"${TIMEZONE}" /etc/localtime
     archroot hwclock --systohc # Sync Time / Date to new TimeZone
     sleep 1
 }
 
 install_yay() {
-    export $USER_NAME
+    export USER_NAME
     cat <<EOF > /mnt/tmp/install_yay.sh
 #!/bin/bash
 
@@ -280,7 +286,7 @@ EOF
 }
 
 install_paru() {
-    export $USER_NAME
+    export USER_NAME
     cat <<EOF > /mnt/tmp/install_paru.sh
 #!/bin/bash
 
@@ -345,4 +351,29 @@ install() {
 
 clean_up() {
     rm -rf /mnt/tmp/*
+}
+
+#
+### Debugging
+#
+print_to_screen() {
+    prompt="DEBUGGING INSTALL CHECK"
+    prompt+="\nLocale: ${SELECTED_LOCALE}" # Locale
+    prompt+="\nHostname: ${NEW_HOST_NAME}" # Hostname
+    prompt+="\nDevice: ${DEVICE}" # Device
+    prompt+="\nHibernation: ${HIBERNATE}" # Hibernation
+    prompt+="\nFile System: ${FILE_SYSTEM}" # File System
+    prompt+="\nRoot Pass Set: ${root_pass_set}" # Root Password Set
+    prompt+="\nRoot Password: ${ROOT_PW}" # Root Password # Insecure as hell
+    prompt+="\nUser Name: ${USER_NAME}" # User account
+    prompt+="\nUser Password: ${USER_PW}" # User password
+    prompt+="\nUser Sudo: ${SUDOER}" # User Sudo
+    prompt+="\nText Editor: ${TEXT_EDITOR}" # Text Editor
+    prompt+="\nEditor Symlink: ${SYMLINK}"
+    prompt+="\nDesktop: ${DESKTOP}" # Desktop
+    prompt+="\nDisplay Manager: ${DISPLAY_MANAGER}" # Display Manager
+    prompt+="\nGraphics Drivers: ${GRAPHICS_DRIVER}" # Graphics Drivers
+    prompt+="\nDriver Packages: ${drivers}"
+    prompt+="\nAUR Helper: ${AUR_WRAPPER}" # AUR Helper
+    echo -e "$prompt"
 }
