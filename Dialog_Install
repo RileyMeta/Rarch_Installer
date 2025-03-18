@@ -20,7 +20,7 @@ BACKTITLE="Rarch Installer"
 
 # Default Values
 DEVICE=""
-HYBERNATE=false
+HIBERNATE=false
 FILE_SYSTEM=""
 GRAPHICS_DRIVER=""
 DESKTOP=""
@@ -361,24 +361,24 @@ _drive_confirmation() {
     --colors \
     --title "Disk Confirmation" \
     --yesno "Are you sure you would like to use ${CYAN}${DEVICE}${ENDSTYLE}?" 0 0 ; then
-        _hybernate_confirm
+        _HIBERNATE_confirm
     else
         DEVICE=""
         disk_selection
     fi
 }
 
-_hybernate_confirm() {
+_hibernate_confirm() {
     if dialog --clear \
     --backtitle "${BACKTITLE}" \
     --colors \
     --title "Hibernation Confirmation" \
     --yesno "Are you using a laptop that you plan to use the \"Hibernation\" feature with?" 0 0 ; then
-        HYBERNATE=true
+        HIBERNATE=true
         default_item=4
         main_menu
     else
-        HYBERNATE=false
+        HIBERNATE=false
         default_item=4
         main_menu
     fi
