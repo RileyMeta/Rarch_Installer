@@ -1,7 +1,12 @@
 #!/bin/bash
 
+# Use the functions from the second script
 source ./install_backend
 
+# Script Defaults
+BACKTITLE="Rarch Installer"
+
+# Text Modifications
 ENDSTYLE="\Zn"
 BOLD="\Zb"
 BOLD_END="\ZB"
@@ -16,16 +21,14 @@ CYAN="\Z6"
 TERMINAL_RED="\e[31m"
 TERMINAL_END="\e[0m"
 
-BACKTITLE="Rarch Installer"
-
 # Default Values
 DEVICE=""
-HIBERNATE=false
 FILE_SYSTEM=""
+HIBERNATE=false
 GRAPHICS_DRIVER=""
 DESKTOP=""
 AUR_WRAPPER="none"
-USERNAME=""
+USER_NAME=""
 account_created=false
 SUDOER=false
 ROOT_PW=""
@@ -37,6 +40,10 @@ DEFAULT_LOCALE=true
 TEXT_EDITOR=""
 SYMLINK=true
 
+#
+required=5
+
+# Trap Ctrl+C input and call function
 trap 'aborted' INT
 
 aborted() {
@@ -45,16 +52,17 @@ aborted() {
     prompt+="\nIf this was caused be a bug or other issues, please report it to the Github"
     prompt+="\n\nhttps://github.com/RileyMeta/Rarch_Installer/issues/new"
     prompt+="\n"
-    echo -e $prompt
+    echo -e "$prompt"
     exit 0
 }
 
+# Possible failures for init_test
 _ram_fail() {
     clear
     prompt="Unfortunately your memory doesn't meet the minimum requirements of 2GiB"
     prompt+="\nIf you would like to continue with installation anyways:"
     prompt+="\nplease pass the '--force' flag to ignore this error"
-    echo -e $prompt 
+    echo -e "$prompt" 
 }
 
 _ping_fail() {
@@ -64,14 +72,19 @@ _ping_fail() {
     prompt+="\nWithout an internet connection the install cannot continue."
     prompt+="\n\nIf you are using WiFi try the following:"
     prompt+="\n'iwctl station wlan0 connect NETWORK-SSID'"
-    echo -e $prompt
+    echo -e "$prompt"
 }
 
+# Init Test
+# Make sure system has enough RAM
+# Make sure system has Internet Access (For installing Packages)
+# Install Dependencies for script if necessary
 init_test() {
     local force=$1
 
+    # If `--force` flag is set, spoof the ram amount to bypass `_ram_fail`
     if [[ "$force" == "true" ]]; then
-        total_ram=2048 # Spoof the ram amount
+        total_ram=2048
     else
         total_ram=$(free -m | awk '/^Mem:/{print $2}')
     fi
@@ -82,7 +95,8 @@ init_test() {
         ping -c 1 google.com || _ping_fail
     fi
 
-    if command -v dialog > /dev/null 2>&1; then
+    # Check for and install dialog
+    if command -v dialog > /dev/null 2>&1; then 
         :
     else
         pacman -Sy --noconfirm dialog
@@ -91,6 +105,7 @@ init_test() {
     main_menu
 }
 
+# All menu labels
 _menu_checks() {
     prompt=""
     case $prompt_argument in
@@ -99,88 +114,107 @@ _menu_checks() {
         2) prompt+="${BOLD}Please review all your info below.${ENDSTYLE}"
            prompt+="\nIf there are any changes you would like to make, simply type the label name"
            prompt+="\nand you will be taken to that section so you can make changes.";;
-        3) prompt+="${RED}${BOLD}The script cannot conitnue, please select your storage drive.${ENDSTYLE}";;
-        4) prompt+="${RED}${BOLD}The script cannot conitnue, please select a Filesystem.${ENDSTYLE}";;
-        5) prompt+="${RED}${BOLD}The script cannot conitnue, please select a Text Editor.${ENDSTYLE}";;
-        6) prompt+="${RED}${BOLD}The script cannot conitnue, please set a root password.${ENDSTYLE}";;
-        7) prompt+="${RED}${BOLD}The script cannot conitnue, please select a Desktop.${ENDSTYLE}";;
-        8) prompt+="${RED}${BOLD}The script cannot conitnue, please set a Hostname.${ENDSTYLE}";;
-        98) prompt+="${YELLOW}System Install Aborted at last minute. \n${BOLD}Nothing has been changed.${ENDSTYLE}";;
-        99) prompt+="${GREEN}${BOLD}Installation Completed Successfully!${ENDSTYLE}"
-            prompt+="\n${YELLOW}Restart to use your new system${ENDSTYLE}";;
+        3) prompt+="${YELLOW}System Install Aborted at last minute."
+           prompt+="\n${BOLD}Nothing has been changed.${ENDSTYLE}";;
+        4) prompt+="${RED}${BOLD}Unable to continue${ENDSTYLE}"
+           prompt+="\nPlease complete all ${RED}required${ENDSTYLE} items.";;
+        5) prompt+="Installation Cancelled"
+           prompt+="\nNo changes have been made.";; 
+        6) prompt+="Successful Install"
+           prompt+="\nYou can now reboot into the new system.";;
     esac
-        LOCALE_LABEL="Locale: ${GREEN}${SELECTED_LOCALE}${ENDSTYLE}"
+    
+    LOCALE_LABEL="Locale: ${GREEN}${SELECTED_LOCALE}${ENDSTYLE}"
     if [[ $DEFAULT_LOCALE = true ]]; then
         LOCALE_LABEL+=" *default"
     fi
+    
+    HOSTNAME_LABEL="Hostname: "
     if [[ ${NEW_HOST_NAME} != "" ]]; then
-        HOSTNAME_LABEL="Hostname: ${GREEN}${NEW_HOST_NAME}${ENDSTYLE}" 
+        HOSTNAME_LABEL+="${GREEN}${NEW_HOST_NAME}${ENDSTYLE}" 
     else
-        HOSTNAME_LABEL="Hostname: ${RED}not set${ENDSTYLE}"
+        HOSTNAME_LABEL+="${RED}not set${ENDSTYLE}"
     fi
+
+    DISKS_LABEL="Disk Selection: "
     if [[ $DEVICE != "" ]]; then
-        DISKS_LABEL="Disk Selection: ${GREEN}${DEVICE}${ENDSTYLE}"
+        DISKS_LABEL+="${GREEN}${DEVICE}${ENDSTYLE}"
     else
-        DISKS_LABEL="Disk Selection: ${RED}not set${ENDSTYLE}" 
+        DISKS_LABEL+="${RED}not set${ENDSTYLE}" 
     fi
+    
+    FS_LABEL="File System: "
     if [[ $FILE_SYSTEM != '' ]]; then
-        FS_LABEL="File System: ${GREEN}${FILE_SYSTEM}${ENDSTYLE}" 
+        FS_LABEL+="${GREEN}${FILE_SYSTEM}${ENDSTYLE}" 
     else
-        FS_LABEL="File System: ${RED}not set${ENDSTYLE}"
+        FS_LABEL+="${RED}not set${ENDSTYLE}"
     fi
-    if [[ $TEXT_EDITOR != '' ]]; then
-        if [[ $SYMLINK = true ]]; then
-            TEXT_EDITOR_LABEL="Text Editor: ${GREEN}${TEXT_EDITOR}*${ENDSTYLE}"
-        else
-            TEXT_EDITOR_LABEL="Text Editor: ${GREEN}${TEXT_EDITOR}${ENDSTYLE}"
-        fi
-    elif [[ $TEXT_EDITOR = 'none' ]]; then
-        TEXT_EDITOR_LABEL="Text Editor: ${GREEN}None${ENDSTYLE}"
-    else
-        TEXT_EDITOR_LABEL="Text Editor: ${RED}not set${ENDSTYLE}"
-    fi
+    
+    ROOT_PASS_LABEL="Root Password: "
     if [[ $root_pass_set = true ]]; then
-        ROOT_PASS_LABEL="Root Password: ${GREEN}set${ENDSTYLE}" 
+        ROOT_PASS_LABEL+="${GREEN}set${ENDSTYLE}" 
     else
-        ROOT_PASS_LABEL="Root Password: ${RED}not set${ENDSTYLE}"
+        ROOT_PASS_LABEL+="${RED}not set${ENDSTYLE}"
     fi
-    if [[ $AUR_WRAPPER != "none" ]]; then
-        AUR_LABEL="AUR Wrapper: ${GREEN}${AUR_WRAPPER}${ENDSTYLE}"
-    else
-        AUR_LABEL="AUR Wrapper: ${CYAN}None Chosen${ENDSTYLE}"
-    fi
-    if [[ $DESKTOP == "" ]]; then
-        DESKTOP_LABEL="Desktop: ${GREEN}None${ENDSTYLE} *default"
-    else
-        DESKTOP_LABEL="Desktop: ${GREEN}${DESKTOP}${ENDSTYLE}"
-    fi
-    GPU_DRIVER_LABEL="Graphics Driver: ${GREEN}"
-    case $GRAPHICS_PROMPT in
-        *) GPU_DRIVER_LABEL+="None ${ENDSTYLE}*default";;
-        1) GPU_DRIVER_LABEL+="Nvidia Proprietary";;
-        2) GPU_DRIVER_LABEL+="Nvidia OpenKernel";;
-        3) GPU_DRIVER_LABEL+="Nvidia OpenSource";;
-        4) GPU_DRIVER_LABEL+="Nvidia OpenSource";;
-        5) GPU_DRIVER_LABEL+="Intel";;
-        6) GPU_DRIVER_LABEL+="AMD";;
-        7) GPU_DRIVER_LABEL+="Mesa ${ENDSTYLE}*backend only";;
-        8) GPU_DRIVER_LABEL+="No Drivers";;
-    esac
-    GPU_DRIVER_LABEL+="${ENDSTYLE}"
+
+    USER_ACCOUNT_LABEL="User Account: "
     if [[ $account_created = true ]]; then
         if [[ $SUDOER = true ]]; then
-            USER_ACCOUNT_LABEL="User Account: ${GREEN}${NEW_USERNAME}${ENDSTYLE}*"
+            USER_ACCOUNT_LABEL+="${GREEN}${NEW_USERNAME}${ENDSTYLE}*"
         else
-            USER_ACCOUNT_LABEL="User Account: ${GREEN}${NEW_USERNAME}${ENDSTYLE}"
+            USER_ACCOUNT_LABEL+="${GREEN}${NEW_USERNAME}${ENDSTYLE}"
         fi
     else
-        USER_ACCOUNT_LABEL="User Account: ${CYAN}No User Account${ENDSTYLE}"
+        USER_ACCOUNT_LABEL+="${CYAN}No User Account${ENDSTYLE}"
     fi
+
+    TEXT_EDITOR_LABEL="Text Editor: "
+    if [[ $TEXT_EDITOR != '' ]]; then
+        if [[ $SYMLINK = true ]]; then
+            TEXT_EDITOR_LABEL+="${GREEN}${TEXT_EDITOR}${ENDSTYLE}*"
+        else
+            TEXT_EDITOR_LABEL+="${GREEN}${TEXT_EDITOR}${ENDSTYLE}"
+        fi
+    elif [[ $TEXT_EDITOR = 'none' ]]; then
+        TEXT_EDITOR_LABEL+="${GREEN}None${ENDSTYLE}"
+    else
+        TEXT_EDITOR_LABEL+="${RED}not set${ENDSTYLE}"
+    fi
+
+    DESKTOP_LABEL="Desktop: "
+    if [[ $DESKTOP == "" ]]; then
+        DESKTOP_LABEL+="${GREEN}None${ENDSTYLE} *default"
+    else
+        DESKTOP_LABEL+="${GREEN}${DESKTOP}${ENDSTYLE}"
+    fi
+
+    GPU_DRIVER_LABEL="Graphics Driver: ${GREEN}"
+    case $GRAPHICS_DRIVER in # TODO: FIX THIS
+        "Default") GPU_DRIVER_LABEL+="None ${ENDSTYLE}*default";;
+        "Nvidia Proprietary") GPU_DRIVER_LABEL+="Nvidia Proprietary";;
+        "Nvidia OpenKernel") GPU_DRIVER_LABEL+="Nvidia OpenKernel";;
+        "Nvidia OpenSource (new)") GPU_DRIVER_LABEL+="Nvidia OpenSource";;
+        "Nvidia OpenSource") GPU_DRIVER_LABEL+="Nvidia OpenSource";;
+        "Intel") GPU_DRIVER_LABEL+="Intel";;
+        "AMD GPU") GPU_DRIVER_LABEL+="AMD";;
+        "Mesa") GPU_DRIVER_LABEL+="Mesa ${ENDSTYLE}*backend only";;
+        "None") GPU_DRIVER_LABEL+="No Drivers";;
+    esac
+    GPU_DRIVER_LABEL+="${ENDSTYLE}"
+    
+    AUR_LABEL="AUR Helper: "
+    if [[ $AUR_WRAPPER != "none" ]]; then
+        AUR_LABEL+="${GREEN}${AUR_WRAPPER}${ENDSTYLE}"
+    else
+        AUR_LABEL+="${CYAN}None Chosen${ENDSTYLE}"
+    fi
+    
     if [[ $ERROR != 1 ]]; then
         MAIN_TITLE="Main Menu"
     else
         MAIN_TITLE="An Error has occurred"
     fi
+    
     if [[ $required != 0 ]]; then
         INSTALL_LABEL="${REVERSE}${RED}Install${ENDSTYLE}"
     else
@@ -244,8 +278,20 @@ esac
     done
 }
 
+#
+# Sub-menus to obtain the information for the install
+#
 locale_selection() {
-    options=("af_ZA" "ar_SA" "be_BY" "bg_BG" "bs_BA" "ca_ES" "cs_CZ" "da_DK" "de_DE" "el_GR" "en_GU" "en_US" "es_ES" "et_EE" "eu_ES" "fa_IR" "fi_FI" "fil_P" "fr_BE" "fr_CA" "fr_CH" "fr_FR" "ga_IE" "gl_ES" "he_IL" "hi_IN" "hr_HR" "hu_HU" "id_ID" "is_IS" "it_IT" "ja_JP" "ka_GE" "km_KH" "kn_IN" "ko_KR" "lo_LA" "lt_LT" "mi_NZ" "mi_NZ" "mi_NZ" "mi_NZ" "ml_IN" "mn_MN" "ms_MY" "nl_NL" "nn_NO" "no_NO" "no_NO" "pl_PL" "pt_BR" "pt_PT" "pt_TL" "ro_RO" "ru_RU" "sk_SK" "sl_SI" "so_SO" "sq_AL" "sr_CS" "sv_SE" "ta_IN" "th_TH" "tr_TR" "uk_UA" "vi_VN" "zh_CN" "zh_TW")
+    options=("af_ZA" "ar_SA" "be_BY" "bg_BG" "bs_BA" "ca_ES" "cs_CZ" \
+             "da_DK" "de_DE" "el_GR" "en_GU" "en_US" "es_ES" "et_EE" \
+             "eu_ES" "fa_IR" "fi_FI" "fil_P" "fr_BE" "fr_CA" "fr_CH" \
+             "fr_FR" "ga_IE" "gl_ES" "he_IL" "hi_IN" "hr_HR" "hu_HU" \
+             "id_ID" "is_IS" "it_IT" "ja_JP" "ka_GE" "km_KH" "kn_IN" \
+             "ko_KR" "lo_LA" "lt_LT" "mi_NZ" "mi_NZ" "mi_NZ" "mi_NZ" \
+             "ml_IN" "mn_MN" "ms_MY" "nl_NL" "nn_NO" "no_NO" "no_NO" \
+             "pl_PL" "pt_BR" "pt_PT" "pt_TL" "ro_RO" "ru_RU" "sk_SK" \
+             "sl_SI" "so_SO" "sq_AL" "sr_CS" "sv_SE" "ta_IN" "th_TH" \
+             "tr_TR" "uk_UA" "vi_VN" "zh_CN" "zh_TW")
 
     menu_options=()
     i=1
@@ -280,9 +326,10 @@ locale_selection() {
     if [ -n "$selection" ]; then
         chosen_option="${options[$((selection - 1))]}"
         SELECTED_LOCALE="${chosen_option}.UTF-8"
+        default_item=2
         main_menu
     else
-        SELECTED_LOCALE="${SELECTED_LOCALE}"
+        default_item=2
         main_menu
     fi
 }
@@ -297,7 +344,6 @@ hostname() {
     --output-fd 1)
 
     if [ $? -eq 0 ]; then
-        prompt_argument=1
         default_item=3
         main_menu
     else
@@ -325,11 +371,11 @@ disk_selection() {
     DISK_SELECT_PROMPT+="\n\nPlease Select the Disk you would like to install Linux to"
     mapfile -t options < <(lsblk -Ald -o NAME | tail -n +2)
 
-    menu_options=""
+    menu_options=("")
     i=1
     for option in "${options[@]}"; do
         if [[ "$option" != "zram0" && "$option" != "NAME" && "$option" != *SWAP* ]]; then
-            menu_options+="$i $option "
+            menu_options+=("$i $option ")
             ((i++))
         fi
     done
@@ -342,7 +388,7 @@ disk_selection() {
                        --cancel-label "BACK" \
                        --ok-label "SELECT" \
                        --menu "${DISK_SELECT_PROMPT}" 0 0 0 \
-                       $menu_options \
+                       "$menu_options" \
                        2>&1 1>&3)
     exec 3>&-
 
@@ -361,7 +407,7 @@ _drive_confirmation() {
     --colors \
     --title "Disk Confirmation" \
     --yesno "Are you sure you would like to use ${CYAN}${DEVICE}${ENDSTYLE}?" 0 0 ; then
-        _HIBERNATE_confirm
+        _hibernate_confirm
     else
         DEVICE=""
         disk_selection
@@ -431,7 +477,7 @@ root_password() {
     --passwordbox "${ROOT_PW_MSG}" 0 0 \
     --output-fd 1)
 
-    if [$? -eq 1 ]; then
+    if [ $? -eq 1 ]; then
         main_menu
     else
         if [[ $ROOT_PW != "" ]]; then 
@@ -451,10 +497,10 @@ _confirm_root_pw() {
     --passwordbox "Please confirm your root Password" 0 0 \
     --output-fd 1)
 
-    if [$? -eq 1 ]; then
+    if [ $? -eq 1 ]; then
         main_menu
     else
-        if [[ $ROOT_PW_CONFIRM = $ROOT_PW ]]; then
+        if [[ $ROOT_PW_CONFIRM = "$ROOT_PW" ]]; then
             root_pass_set=true
             default_item=6
             main_menu
@@ -471,19 +517,19 @@ account_creation() {
     else
         USERNAME_PROMPT="Please type your username:"
     fi
-    USERNAME=$(dialog --clear \
+    NEW_USERNAME=$(dialog --clear \
     --backtitle "${BACKTITLE}" \
     --title "User Account Creation" \
     --insecure \
     --inputbox "${USERNAME_PROMPT}" 0 0 \
     --output-fd 1)
 
-    if [$? -eq 1 ]; then
+    if [ $? -eq 1 ]; then
         main_menu
     else
-        if [[ $USERNAME != "" ]]; then 
+        if [[ -z $USER_NAME ]]; then 
             USER_INCORRECT=1 # Default / Normal response
-            NEW_USERNAME="${USERNAME,,}"
+            USER_NAME="${NEW_USERNAME,,}"
             user_password_check
         else
             USERNAME_INCORRECT=true
@@ -511,7 +557,7 @@ user_password_check() {
 
 user_password() {
     case ${USER_INCORRECT} in
-        *) USER_PW_MSG="Please input your user Password";;
+        "1") USER_PW_MSG="Please input your user Password";;
         "2") USER_PW_MSG="The passwords you entered did not match. \nPlease try again.";;
         "3") USER_PW_MSG="The User Password cannot be blank. \nPlease try again.";;
     esac
@@ -522,7 +568,7 @@ user_password() {
     --passwordbox "${USER_PW_MSG}" 0 0 \
     --output-fd 1)
 
-    if [$? -eq 1 ]; then
+    if [ $? -eq 1 ]; then
         main_menu
     else
         if [[ $USER_PW != "" ]]; then 
@@ -542,10 +588,10 @@ _confirm_user_pw() {
     --passwordbox "Please confirm your user Password" 0 0 \
     --output-fd 1)
 
-    if [$? -eq 1 ]; then
+    if [ $? -eq 1 ]; then
         main_menu
     else
-        if [[ $USER_PW_CONFIRM = $USER_PW ]]; then
+        if [[ $USER_PW_CONFIRM = "$USER_PW" ]]; then
             user_pass_set=true
             account_created=true
             user_sudoers_check
@@ -564,14 +610,16 @@ user_sudoers_check() {
     --yesno "Would you like ${BLUE}${NEW_USERNAME}${ENDSTYLE} to be a sudoer?" 0 0; 
     then
         SUDOER=true
+        default_item=7
         main_menu
     else
         SUDOER=false
+        default_item=7
         main_menu
     fi
 }
 
-texteditor() {
+texteditor() { # TODO: FIX
     while true; do
     texteditorOptions=(
     1 "Vi" on \
@@ -684,6 +732,7 @@ display_manager() {
     2 "SDDM"
     3 "LightDM"
     4 "SX (StartX alternative)"
+    5 "None"
 )
 result=$(dialog --clear --title "Display Manager Selection" \
     --backtitle "$BACKTITLE" \
@@ -695,19 +744,23 @@ result=$(dialog --clear --title "Display Manager Selection" \
 case $? in
     0)  case $result in
             1) DISPLAY_MANAGER="gdm"
-                default_item=10
+                default_item=9
                 main_menu
                 break ;;
             2) DISPLAY_MANAGER="sddm"
-                default_item=10
+                default_item=9
                 main_menu
                 break ;;
             3) DISPLAY_MANAGER="lightdm"
-                default_item=10
+                default_item=9
                 main_menu
                 break ;;
             4) DISPLAY_MANAGER="sx"
-                default_item=10
+                default_item=9
+                main_menu
+                break ;;
+            5) DISPLAY_MANAGER=""
+                default_item=9
                 main_menu
                 break ;;
         esac
@@ -742,43 +795,35 @@ result=$(dialog --clear --title "Graphics Driver Selection" \
 case $? in
     0)  case $result in
             1) GRAPHICS_DRIVER="Nvidia Proprietary"
-                GRAPHICS_PROMPT=1
-                default_item=11
+                default_item=10
                 main_menu
                 break ;;
             2) GRAPHICS_DRIVER="Nvidia Open"
-                GRAPHICS_PROMPT=2
-                default_item=11
+                default_item=10
                 main_menu
                 break ;;
             3) GRAPHICS_DRIVER="vulkan-nouveau"
-                GRAPHICS_PROMPT=3
-                default_item=11
+                default_item=10
                 main_menu
                 break ;;
             4) GRAPHICS_DRIVER="xf86-nouveau"
-                GRAPHICS_PROMPT=4
-                default_item=11
+                default_item=10
                 main_menu
                 break ;;
             5) GRAPHICS_DRIVER="Intel"
-                GRAPHICS_PROMPT=5
-                default_item=11
+                default_item=10
                 main_menu
                 break ;;
             6) GRAPHICS_DRIVER="AMD GPU"
-                GRAPHICS_PROMPT=6
-                default_item=11
+                default_item=10
                 main_menu
                 break ;;
             7) GRAPHICS_DRIVER="mesa"
-                GRAPHICS_PROMPT=7
-                default_item=11
+                default_item=10
                 main_menu
                 break ;;
             8) GRAPHICS_DRIVER=""
-                GRAPHICS_PROMPT=8
-                default_item=11
+                default_item=10
                 main_menu
                 break ;;
         esac
@@ -830,15 +875,15 @@ result=$(dialog --clear --title "Aur Wrapper" \
 case $? in
     0)  case $result in
             1) AUR_WRAPPER="yay"
-                default_item=12
+                default_item=11
                 main_menu
                 break ;;
             2) AUR_WRAPPER="paru"
-                default_item=12
+                default_item=11
                 main_menu
                 break ;;
             3) AUR_WRAPPER="none"
-                default_item=12
+                default_item=11
                 main_menu
                 break ;;
         esac
@@ -849,24 +894,8 @@ esac
 }
 
 _install_check() {
-    if [[ $NEW_HOST_NAME = "" ]]; then
-        prompt_argument=8
-        ERROR=1
-        main_menu
-    elif [[ $DEVICE = "" ]]; then
-        prompt_argument=3
-        ERROR=1
-        main_menu
-    elif [[ $FILE_SYSTEM = "" ]]; then
+    if [[ -z "$HOSTNAME" || -z "$DEVICE" || -z "$FILE_SYSTEM" || "$root_pass_set" == "false" || -z "$TEXT_EDITOR" ]]; then
         prompt_argument=4
-        ERROR=1
-        main_menu
-    elif [[ $ROOT_PW = "" ]]; then
-        prompt_argument=6
-        ERROR=1
-        main_menu
-    elif [[ $TEXT_EDITOR = "" ]]; then
-        prompt_argument=5
         ERROR=1
         main_menu
     else
@@ -883,9 +912,10 @@ install_confirmation() {
     --no-label "NO, TAKE ME BACK" \
     --yesno "\nAre you sure you would like to continue with the Install?
     \n\n${RED}${UNDERLINE}This will completely erase all data on ${BOLD}$DEVICE${ENDSTYLE}" 0 0 ; then
-        full_install && SUCCESSFUL_FINISH
+        # install && SUCCESSFUL_FINISH
+        print_to_screen
     else
-        prompt_argument=98
+        prompt_argument=5
         main_menu
     fi
 }
@@ -899,11 +929,12 @@ SUCCESSFUL_FINISH() {
     then
         echo "arch-chroot /mnt"
     else
-        prompt_argument=99
+        prompt_argument=6
         main_menu
     fi
 }
 
+# Run-time flag functions
 info_page() {
     dialog --clear \
     --backtitle "${BACKTITLE}" \
@@ -919,7 +950,7 @@ github() {
     clear
     prompt="Follow the project on Github:"
     prompt+="\nhttps://github.com/RileyMeta/Rarch_Installer"
-    echo -e $prompt
+    echo -e "$prompt"
 }
 
 help_menu() {
@@ -930,7 +961,7 @@ help_menu() {
     prompt+="\n'--info' open the Dialog page for application info"
     prompt+="\n'--github' get a link to the github repo"
     prompt+="\n'--help' opens this menu, duh"
-    echo -e $prompt
+    echo -e "$prompt"
 }
 
 # Check for runtime flags
