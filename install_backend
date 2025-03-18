@@ -81,7 +81,7 @@ EOF
 #
 init_test() { # Ensure that the host has an Internet Connection
     ping -c 1 google.com || ping_fail
-    timedatectl && install # Begin the install
+    timedatectl && install
 }
 
 partition() {
@@ -168,12 +168,26 @@ install_packages() {
     esac
 
     case GRAPHICS_DRIVER in
-        # To Do: Finish
+        "Nvidia Proprietary")
+            drivers="nvidia-dkms egl-wayland lib32-nvidia-utils lib32-opencl-nvidia nvidia-settings opencl-nvidia nvidia-utils";;
+        "Nvidia Open")
+            drivers="nvidia-open-dkms egl-wayland lib32-nvidia-utils lib32-opencl-nvidia nvidia-settings opencl-nvidia nvidia-utils";;
+        "vulkan-nouveau")
+            drivers="vulkan-nouveau lib32-vulkan-nouveau vulkan-icd-loader lib32-vulkan-icd-loader mesa lib32-mesa";;
+        "xf86-nouveau")
+            drivers="xf86-video-nouveau mesa vulkan-icd-loader";;
+        "Intel")
+            drivers="mesa";;
+        "AMD GPU")
+            drivers="mesa";;
+        "mesa")
+            drivers="mesa";;
+
     esac
 
     pacstrap -K /mnt base base-devel linux linux-firmware linux-headers \
                      git go curl wget grub efibootmgr networkmanager \
-                     $packages $DISPLAY_MANAGER $EDITOR
+                     $packages $DISPLAY_MANAGER $drivers $EDITOR
     sleep 1
 }
 
@@ -328,6 +342,7 @@ install() {
 #
 # Post Install Tasks:
 #
+
 clean_up() {
     rm -rf /mnt/tmp/*
 }
