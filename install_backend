@@ -328,7 +328,6 @@ install() {
 #
 # Post Install Tasks:
 #
-
 clean_up() {
     rm -rf /mnt/tmp/*
 }
