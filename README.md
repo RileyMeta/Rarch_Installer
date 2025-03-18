@@ -11,7 +11,7 @@ This is a completely custom Arch Linux Installer, completely written in Bash and
 
 
 ## Current Issues
-- Unable to add users to /etc/sudoers.d/
+~~- Unable to add users to /etc/sudoers.d/~~
 - No option for alternative bootloader
 - No option for encryption
 - No way to export or import configs
