@@ -72,6 +72,17 @@ init_test() { # Ensure that the host has an Internet Connection
 
 partition() {
     clear
+
+    TOTAL_RAM_GB=$(free -g | awk '/^Mem:/{print $2}')
+    if [[ $HYBERNATE == true ]]; then
+        # Calculate swap size (1.25 times total RAM), rounding to the nearest whole number
+        SWAP_SIZE="+" # Ignore this hack, please
+        SWAP_SIZE+=$(awk "BEGIN {print int(($TOTAL_RAM_GB * 1.25) + 0.5)}")
+        SWAP_SIZE+="G" # It works, why are you judging me?
+    else
+        SWAP_SIZE="+4G"
+    fi
+
     cat <<EOF | fdisk $DEVICE
 g
 n
@@ -83,7 +94,7 @@ t
 n
 2
 
-+4G
+$SWAP_SIZE
 t
 2
 swap
@@ -101,7 +112,13 @@ format() {
     clear
     mkfs.fat -F 32 $BOOT
     mkswap $SWAP
-    mkfs.btrfs -f $ROOT
+
+    case $FILE_SYSTEM in
+        "btrfs")
+            mkfs.btrfs -f $ROOT;;
+        "ext4")
+            yes | mkfs.ext4 $ROOT;;
+    esac
     sleep 1
 }
 
