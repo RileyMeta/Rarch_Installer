@@ -60,7 +60,21 @@ ping_fail() {
     echo -e $prompt
 }
 
+#
+# Pre-Install Tasks
+# Basically just enable Parallel Downloads
+parallel() {
+    sed -i 's/^#ParallelDownloads/ParallelDownloads/' /etc/pacman.conf
+}
 
+multilib() {
+    # Going to hack this because sed is a bitch
+    cat <<EOF >> /etc/pacman.conf
+
+[multilib]
+Include = /etc/pacman.d/mirrorlist
+EOF
+}
 
 #
 # Actual Installation Steps taking place below here
@@ -151,6 +165,10 @@ install_packages() {
             DISPLAY_MANAGER="lightdm-slick-greeter";;
         "None")
             packages="";;
+    esac
+
+    case GRAPHICS_DRIVER in
+        # To Do: Finish
     esac
 
     pacstrap -K /mnt base base-devel linux linux-firmware linux-headers \
@@ -268,10 +286,6 @@ EOF
     archroot /tmp/install_paru.sh
 }
 
-clean_up() {
-    rm -rf /mnt/tmp/*
-}
-
 # New Install Steps
 install() {
     local steps=(
@@ -289,6 +303,12 @@ install() {
         "set_timezone:Setting Timezone"
     )
 
+    parallel
+
+    if [[ $GRAPHICS_DRIVER == *"nvidia"* ]]; then
+        multilib
+    fi
+
     # Run main installation steps
     for step in "${steps[@]}"; do
         IFS=":" read -r func msg <<< "$step"
@@ -303,4 +323,12 @@ install() {
         "Yay") install_yay || catastrophic_failure "Installing Yay" ;;
         "Paru") install_paru || catastrophic_failure "Installing Paru" ;;
     esac
+}
+
+#
+# Post Install Tasks:
+#
+
+clean_up() {
+    rm -rf /mnt/tmp/*
 }
