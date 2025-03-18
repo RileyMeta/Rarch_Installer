@@ -20,7 +20,7 @@ BACKTITLE="Rarch Installer"
 
 # Default Values
 DEVICE=""
-SWAP=false
+HYBERNATE=false
 FILE_SYSTEM=""
 GRAPHICS_DRIVER=""
 DESKTOP=""
@@ -361,11 +361,26 @@ _drive_confirmation() {
     --colors \
     --title "Disk Confirmation" \
     --yesno "Are you sure you would like to use ${CYAN}${DEVICE}${ENDSTYLE}?" 0 0 ; then
-        default_item=4
-        main_menu
+        _hybernate_confirm
     else
         DEVICE=""
         disk_selection
+    fi
+}
+
+_hybernate_confirm() {
+    if dialog --clear \
+    --backtitle "${BACKTITLE}" \
+    --colors \
+    --title "Hibernation Confirmation" \
+    --yesno "Are you using a laptop that you plan to use the \"Hibernation\" feature with?" 0 0 ; then
+        HYBERNATE=true
+        default_item=4
+        main_menu
+    else
+        HYBERNATE=false
+        default_item=4
+        main_menu
     fi
 }
 
@@ -441,7 +456,7 @@ _confirm_root_pw() {
     else
         if [[ $ROOT_PW_CONFIRM = $ROOT_PW ]]; then
             root_pass_set=true
-            default_item=7
+            default_item=6
             main_menu
         else
             ROOT_INCORRECT=2
@@ -469,11 +484,9 @@ account_creation() {
         if [[ $USERNAME != "" ]]; then 
             USER_INCORRECT=1 # Default / Normal response
             NEW_USERNAME="${USERNAME,,}"
-            default_item=8
             user_password_check
         else
             USERNAME_INCORRECT=true
-            default_item=8
             account_creation
         fi
     fi
@@ -491,6 +504,7 @@ user_password_check() {
     else
         user_pass=false
         account_created=true
+        default_item=7
         main_menu
     fi
 }
@@ -577,27 +591,27 @@ result=$(dialog --clear --title "Text Editor Selection" \
 case $? in
     0)  case $result in
             1) TEXT_EDITOR="vi"
-                default_item=9
+                default_item=8
                 main_menu
                 break ;;
             2) TEXT_EDITOR="vim"
-                default_item=9
+                default_item=8
                 main_menu
                 break ;;
             3) TEXT_EDITOR="neovim"
-                default_item=9
+                default_item=8
                 text_editor_symlink
                 break ;;
             4) TEXT_EDITOR="nano"
-                default_item=9
+                default_item=8
                 text_editor_symlink
                 break ;;
             5) TEXT_EDITOR="emacs"
-                default_item=9
+                default_item=8
                 text_editor_symlink
                 break ;;
             6) TEXT_EDITOR="none"
-                default_item=9
+                default_item=8
                 main_menu
                 break ;;
         esac ;;
