@@ -5,7 +5,7 @@
 #
 
 # SELECTED_DEVICE="vda"
-DEVICE="/dev/${SELECTED_DEVICE}" # Temp, remove after testing, Dialog Script has a function for getting the device
+# DEVICE="/dev/${SELECTED_DEVICE}" # Temp, remove after testing, Dialog Script has a function for getting the device
 
 # Required because Linux appends a p for each Partition if NVME
 if [[ $DEVICE == *"nvme"* ]]; then
