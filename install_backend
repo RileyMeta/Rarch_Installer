@@ -4,10 +4,10 @@
 # Global Variables used throughout the Script
 #
 
-SELECTED_DEVICE="vda"
+# SELECTED_DEVICE="vda"
 DEVICE="/dev/${SELECTED_DEVICE}" # Temp, remove after testing, Dialog Script has a function for getting the device
 
-# Required because Linux appends a p for each Partition
+# Required because Linux appends a p for each Partition if NVME
 if [[ $DEVICE == *"nvme"* ]]; then
     BOOT="${DEVICE}p1"
     SWAP="${DEVICE}p2"
@@ -19,7 +19,7 @@ else
 fi
 
 EDITOR=""                       # nano, vi, vim, nvim, emacs, ed, etc; leave blank for none (Not recommended)
-DESKTOP=""                      # KDE Plasma, Gnome, XFCE4, MATE, Cinnamon, etc; "None" for headless/server
+DESKTOP=""                      # KDE Plasma, Gnome, XFCE4, MATE, Cinnamon, etc; "None\" for headless/server
 HOSTNAME=""                     # What your computer is known as on networks
 ROOT_PASSWORD=""                # The Root account password (Leave empty to disable *hardmode*)
 USER_NAME=""                    # Your primary user account's name
@@ -28,6 +28,7 @@ USER_PASSWORD=""                # The password for your user account
 LOCALE=""                       # The Locale / language for your computer
 REGION=""                       # The Region you exist in: US/Europe/etc.
 TIMEZONE=""                     # The timezone of your computer
+AUR_WRAPPER=""                  # yay, paru or "none"
 
 #
 # Helper Functions
