@@ -165,23 +165,10 @@ add_user() {
 
 add_sudo() {
     clear
-    # touch /mnt/etc/sudoers.d/00_${USER_NAME}
-    # echo "${USER_NAME} ALL=(ALL:ALL) ALL" | archroot tee /etc/sudoers.d/00_$USER_NAME
-    # chmod 0440 /mnt/etc/sudoers.d/00_${USER_NAME}
-    # sudo sed -i "/^root ALL=(ALL:ALL) ALL/a ${USER_NAME} ALL=(ALL:ALL) ALL" /mnt/etc/sudoers.d/00_$USER_NAME
-    # echo "Unable to adjust sudoers list. Please use `visudo` to correct this."
-    # echo "${USER_NAME} ALL=(ALL) ALL" | sudo dd of=/mnt/etc/sudoers.d/00_${USER_NAME}
-
-    export USER_NAME
-    cat <<EOF > /mnt/tmp/sudoer.sh
-#!/bin/bash
-
-echo "\${USER_NAME} ALL=(ALL:ALL) ALL" > /etc/sudoers.d/00_$USER_NAME
-
+    cat <<EOF | arch-chroot /mnt
+echo "${USER_NAME} ALL=(ALL:ALL) ALL" > /etc/sudoers.d/00_${USER_NAME}
+chmod 0440 /etc/sudoers.d/00_${USER_NAME}
 EOF
-
-    chmod a+x /mnt/tmp/sudoers.sh
-    archroot /tmp/suders.sh
     sleep 1
 }
 
@@ -290,7 +277,9 @@ install() {
         "$func" || catastrophic_failure "$msg"
     done
 
-    [[ $USER_SUDO == true ]] && add_sudo || catastrophic_failure "Adding User to Sudoers"
+    if [[ $USER_SUDO == true ]]; then
+        add_sudo || catastrophic_failure "Adding User to Sudoers"
+    fi
 
     case $AUR_WRAPPER in
         "Yay") install_yay || catastrophic_failure "Installing Yay" ;;
