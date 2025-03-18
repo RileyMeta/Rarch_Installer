@@ -24,15 +24,16 @@ SWAP=false
 FILE_SYSTEM=""
 GRAPHICS_DRIVER=""
 DESKTOP=""
-AUR_WRAPPER=""
+AUR_WRAPPER="none"
 USERNAME=""
-account_created=true
-SUDOER=true
+account_created=false
+SUDOER=false
 ROOT_PW=""
 root_pass_set=false
 DISPLAY_MANAGER=""
 NEW_HOST_NAME=""
-SELECTED_LOCALE=""
+SELECTED_LOCALE="en_US"
+DEFAULT_LOCALE=true
 TEXT_EDITOR=""
 SYMLINK=true
 
@@ -143,15 +144,19 @@ _menu_checks() {
     else
         ROOT_PASS_LABEL="Root Password: ${RED}not set${ENDSTYLE}"
     fi
-    if [[ $AUR_WRAPPER != 'none' ]]; then
+    if [[ $AUR_WRAPPER != "none" ]]; then
         AUR_LABEL="AUR Wrapper: ${GREEN}${AUR_WRAPPER}${ENDSTYLE}"
     else
         AUR_LABEL="AUR Wrapper: ${CYAN}None Chosen${ENDSTYLE}"
     fi
-    DESKTOP_LABEL="Desktop: ${GREEN}${DESKTOP}${ENDSTYLE}"
+    if [[ $DESKTOP == "" ]]; then
+        DESKTOP_LABEL="Desktop: ${GREEN}None${ENDSTYLE} *default"
+    else
+        DESKTOP_LABEL="Desktop: ${GREEN}${DESKTOP}${ENDSTYLE}"
+    fi
     GPU_DRIVER_LABEL="Graphics Driver: ${GREEN}"
     case $GRAPHICS_PROMPT in
-        0) GPU_DRIVER_LABEL+="None ${ENDSTYLE}*default";;
+        *) GPU_DRIVER_LABEL+="None ${ENDSTYLE}*default";;
         1) GPU_DRIVER_LABEL+="Nvidia Proprietary";;
         2) GPU_DRIVER_LABEL+="Nvidia OpenKernel";;
         3) GPU_DRIVER_LABEL+="Nvidia OpenSource";;
