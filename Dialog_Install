@@ -214,8 +214,8 @@ _menu_checks() {
     else
         MAIN_TITLE="An Error has occurred"
     fi
-    
-    if [[ $required != 0 ]]; then
+
+    if [[ -z "$HOSTNAME" && -z "$DEVICE" && -z "$FILE_SYSTEM" && "$root_pass_set" == "false" && -z "$TEXT_EDITOR" ]]; then
         INSTALL_LABEL="${REVERSE}${RED}Install${ENDSTYLE}"
     else
         INSTALL_LABEL="${REVERSE}${GREEN}Install${ENDSTYLE}"
@@ -223,6 +223,7 @@ _menu_checks() {
 }
 
 main_menu() {
+    local title, text
     _menu_checks
     while true; do
     mainMenuOptions=(
@@ -242,6 +243,7 @@ result=$(dialog --clear --title "${MAIN_TITLE}" \
     --backtitle "$BACKTITLE" \
     --colors \
     --default-item "$default_item" \
+    --extra-button --extra-label "More Info" \
     --cancel-label "Exit" \
     --stdout \
     --menu "${prompt}" 0 0 10 "${mainMenuOptions[@]}")
@@ -272,6 +274,32 @@ case $? in
                 break ;;
         esac
         ;;
+    3) 
+        case $result in
+            1) title="Locale Selection"
+                text="The Locale is the language that the system will use to build packages and their documentation.";;
+            2) title="Hostname"
+                text="The name your computer will show up as on the network.";;
+            3) title="Disk Selection"
+                text="Select the Hard Drive or SSD that you want to install Arch Linux to.";;
+            4) title="Filesystem"
+                text="This is the filesystem that the Root of your system will use.";;
+            5) title="Root Password"
+                text="Assign a password to the root user account.";;
+            6) title="Account Creation"
+                text="It's best practice to only use the root user for specific tasks, not every day use, so here you have the option to create a user account.";;
+            7) title="Text Editor"
+                text="This is a terminal text editor, needed to edit configuration files easily, not strictly required, but definitely recommended.";;
+            8) title="Desktop"
+                text="If you want, a Desktop Environment brings all the tools and a graphic user interface, making it easier and more like a \"Desktop\" to use.";;
+            9) title="Graphics Drivers"
+                text="If you're using specific graphics hardware a driver may be required for it to function.";;
+            10) title="AUR Wrapper"
+                text="This is a simple tool that helps to automate installing packages from the AUR. Right now we offer Yay (written in Go) and Paru (written in Rust).";;
+            11) title="THE ALL MIGHTY INSTALL BUTTON"
+                text="Don't touch unless you're ready. (Don't worry, it's coded not to install until you say so)";;
+        esac
+        dialog --clear --backtitle "$BACKTITLE" --title "$title" --msgbox "$text" 6 40;;
     1) clear 
         exit 1 ;;
 esac
@@ -621,20 +649,21 @@ user_sudoers_check() {
 
 texteditor() { # TODO: FIX
     while true; do
-    texteditorOptions=(
-    1 "Vi" on \
-    2 "Vim" off \
-    3 "NeoVim" off \
-    4 "Nano" off \
-    5 "Emacs" off \
-    6 "None" off
-)
-result=$(dialog --clear --title "Text Editor Selection" \
-    --backtitle "$BACKTITLE" \
-    --colors \
-    --cancel-label "BACK" \
-    --stdout \
-    --checklist "\nPlease select your preferred console text editor" 0 0 6 "${texteditorOptions[@]}")
+        texteditorOptions=(
+            1 "Vi" on \
+            2 "Vim" off \
+            3 "NeoVim" off \
+            4 "Nano" off \
+            5 "Emacs" off \
+            6 "None" off
+        )
+
+    result=$(dialog --clear --title "Text Editor Selection" \
+        --backtitle "$BACKTITLE" \
+        --colors \
+        --cancel-label "BACK" \
+        --stdout \
+        --checklist "\nPlease select your preferred console text editor" 0 0 6 "${texteditorOptions[@]}")
 
 case $? in
     0)  case $result in
