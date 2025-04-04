@@ -4,19 +4,13 @@
 # Global Variables used throughout the Script
 #
 
-# SELECTED_DEVICE="vda"
-# DEVICE="/dev/${SELECTED_DEVICE}" # Temp, remove after testing, Dialog Script has a function for getting the device
+DEVICE="" # The device you will install arch linux to
 
 # Required because Linux appends a p for each Partition if NVME
-if [[ $DEVICE == *"nvme"* ]]; then
-    BOOT="${DEVICE}p1"
-    SWAP="${DEVICE}p2"
-    ROOT="${DEVICE}p3"
-else
-    BOOT="${DEVICE}1"
-    SWAP="${DEVICE}2"
-    ROOT="${DEVICE}3"
-fi
+[[ $DEVICE == *"nvme"* ]] && suffix="p"
+BOOT="${DEVICE}${suffix}1"
+SWAP="${DEVICE}${suffix}2"
+ROOT="${DEVICE}${suffix}3"
 
 EDITOR=""                       # nano, vi, vim, nvim, emacs, ed, etc; leave blank for none (Not recommended)
 DESKTOP=""                      # KDE Plasma, Gnome, XFCE4, MATE, Cinnamon, etc; "None\" for headless/server
