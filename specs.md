@@ -11,6 +11,10 @@ It will:
 - Enable System Services
 - Copy over Relevent config files
 - Misc Startup script(s)
+> [!NOTE]
+> **[ NECESSARY ]** - Installer will NOT start without an internet connection.<br>
+> Pacstrap cannot function without a connection to a repositry server.<br>
+> Networking (Wifi) Connection Settings MUST be available (especially in the Fullscreen Mode).
 
 ## Modes:
 There are 3 Primary modes (and 2 optional) for the GUI Installer. 
