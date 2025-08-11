@@ -1,12 +1,31 @@
 # Rarch Installer
-This is a completely custom Arch Linux Installer, completely written in Bash and wrapped with Dialog for a GUI.
-> [!IMPORTANT]
-> Passwords are stored as plain-text in variables but never saved to the disk.
+This is a completely custom [GTK4](https://www.gtk.org/) Rarch Linux Installer. 
+> Riley's (customized) Arch Linux
 
-![display](https://github.com/user-attachments/assets/07fb7acc-5102-4f10-b45c-91abd7c3cc24)
-> This is just my project to learn Bash and experiment with User Inputs.
+## Details
+- Language: C18
+- Toolkit: GTK4 [4.18.6]
+- License: [MPL-2](https://github.com/RileyMeta/Rarch_Installer/blob/main/LICENSE)
 
-## Current Issues
-- No option for alternative bootloader
-- No option for encryption
-- No way to export or import configs
+## Build Instructions
+Currently we provide a custom Makefile that should automate every step of the build and compilation. Assuming you've already cloned the repository, in the root, to build the project you can run:
+```sh
+make
+```
+You may also use `make clean` to clear the final and object file(s).
+
+<details>
+<summary>Fallback Commands</summary>
+These are the commands used in the make file:
+
+```sh
+gcc `pkg-config --cflags gtk4 gio-2.0` main.c `pkg-config --libs gtk4 gio-2.0` -o Rarch_Installer
+```
+Key: compiler cflags src ldflags output
+
+The backticks are required for bash command interpretation, but can be replaced with `$(commands)`.
+</details>
+
+## Updates
+> [!NOTE]
+If anything needs to be fixed / updated, please submit a pull request
