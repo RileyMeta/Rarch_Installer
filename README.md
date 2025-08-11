@@ -6,6 +6,8 @@ This is a completely custom [GTK4](https://www.gtk.org/) Rarch Linux Installer.
 - Language: C18
 - Toolkit: GTK4 [4.18.6]
 - License: [MPL-2](https://github.com/RileyMeta/Rarch_Installer/blob/main/LICENSE)
+> [!important]
+> I am willing to re-license upon request.
 
 ## Build Instructions
 Currently we provide a custom Makefile that should automate every step of the build and compilation. Assuming you've already cloned the repository, in the root, to build the project you can run:
