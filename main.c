@@ -57,34 +57,30 @@ static InstallerConfig config = {
     .show_help = FALSE
 };
 
-static void
-print_version(void)
-{
-    g_print("Custom Linux Installer v1.0.0\n");
+static void print_version(void) {
+    g_print("Rarch Linux Installer v1.0.0\n");
     g_print("Built with GTK %d.%d.%d\n",
             gtk_get_major_version(),
             gtk_get_minor_version(),
             gtk_get_micro_version());
 }
 
-static void
-print_help(const char *program_name)
-{
+static void print_help(const char *program_name) {
     g_print("Usage: %s [OPTIONS]\n\n", program_name);
     g_print("Options:\n");
     g_print("  -h, --help        Show this help message\n");
     g_print("  -v, --version     Show version information\n");
     g_print("  -o, --oem         Run in OEM mode\n");
+    g_print("  -r, --recovery    Run in Recovery mode\n");
     g_print("  -f, --fullscreen  Run in fullscreen mode\n");
     g_print("  -d, --debug       Enable debug output\n");
     g_print("\nModes:\n");
     g_print("  Normal mode:      Default installation mode\n");
     g_print("  OEM mode:         Prepare system for OEM deployment\n");
+    g_print("  Recovery Mode:    Simplified installer to restore defaults");
 }
 
-static void
-debug_log(const char *format, ...)
-{
+static void debug_log(const char *format, ...) {
     if (!config.debug)
         return;
 
@@ -96,11 +92,9 @@ debug_log(const char *format, ...)
     va_end(args);
 }
 
-static gint
-handle_local_options(GApplication *app,
-                     GVariantDict *options,
-                     gpointer user_data)
-{
+static gint handle_local_options(GApplication *app,
+                                 GVariantDict *options,
+                                 gpointer user_data) {
     // Handle --version
     if (g_variant_dict_lookup(options, "version", "b", &config.show_version)) {
         if (config.show_version) {
@@ -123,6 +117,12 @@ handle_local_options(GApplication *app,
         debug_log("OEM mode enabled");
     }
 
+    // Handle --recovery
+    if (g_variant_dict_lookup(options, "recovery", "b", NULL)) {
+        config.mode = MODE_RECOVERY;
+        debug_log("Recovery mode enabled");
+    }
+
     // Handle --fullscreen
     g_variant_dict_lookup(options, "fullscreen", "b", &config.fullscreen);
     if (config.fullscreen) {
@@ -138,25 +138,23 @@ handle_local_options(GApplication *app,
     return -1; // Continue with normal startup
 }
 
-static void
-setup_window_for_mode(GtkWindow *window)
-{
+static void setup_window_for_mode(GtkWindow *window) {
     const char *title;
     const char *css_class;
 
     switch (config.mode) {
         case MODE_OEM:
-            title = "Linux Installer - OEM Mode";
+            title = "Rarch Installer - OEM Mode";
             css_class = "oem-mode";
             debug_log("Setting up OEM mode interface");
             break;
         case MODE_RECOVERY:
-            title = "Linux Installer - Recovery Mode";
+            title = "Rarch Installer - Recovery Mode";
             css_class = "recovery-mode";
             debug_log("Setting up recovery mode interface");
             break;
         default:
-            title = "Linux Installer";
+            title = "Rarch Installer";
             css_class = "normal-mode";
             debug_log("Setting up normal mode interface");
             break;
@@ -173,9 +171,7 @@ setup_window_for_mode(GtkWindow *window)
     }
 }
 
-static void
-create_installer_ui(GtkWindow *window)
-{
+static void create_installer_ui(GtkWindow *window) {
     GtkWidget *box, *label, *button_box, *next_button, *cancel_button;
 
     box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
@@ -208,9 +204,13 @@ create_installer_ui(GtkWindow *window)
     button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
     gtk_widget_set_halign(button_box, GTK_ALIGN_END);
 
-    cancel_button = gtk_button_new_with_label("Cancel");
+    // If Page = 0 set to Exit else set to Back
+    cancel_button = gtk_button_new_with_label("Exit");
     next_button = gtk_button_new_with_label("Next");
+    // if Page = pages - 1 set to Finish else set to Next
     gtk_widget_add_css_class(next_button, "suggested-action");
+
+    g_signal_connect_swapped(cancel_button, "clicked", G_CALLBACK(gtk_window_close), window);
 
     gtk_box_append(GTK_BOX(button_box), cancel_button);
     gtk_box_append(GTK_BOX(button_box), next_button);
@@ -224,9 +224,7 @@ create_installer_ui(GtkWindow *window)
     debug_log("UI created for mode: %d", config.mode);
 }
 
-static void
-activate(GtkApplication *app, gpointer user_data)
-{
+static void activate(GtkApplication *app, gpointer user_data) {
     GtkWidget *window;
 
     debug_log("Application activating");
@@ -240,9 +238,7 @@ activate(GtkApplication *app, gpointer user_data)
     debug_log("Main window presented");
 }
 
-int
-main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     GtkApplication *app;
     int status;
 
@@ -263,6 +259,11 @@ main(int argc, char *argv[])
                                   "oem", 'o', G_OPTION_FLAG_NONE,
                                   G_OPTION_ARG_NONE,
                                   "Run in OEM mode", NULL);
+
+    g_application_add_main_option(G_APPLICATION(app),
+                                  "recovery", 'r', G_OPTION_ARG_NONE,
+                                  G_OPTION_ARG_NONE,
+                                  "Run in Recovery mode", NULL);
 
     g_application_add_main_option(G_APPLICATION(app),
                                   "fullscreen", 'f', G_OPTION_FLAG_NONE,
